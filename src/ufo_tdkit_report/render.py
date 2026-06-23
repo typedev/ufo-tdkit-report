@@ -1,0 +1,136 @@
+"""Render source-change reports as Markdown (issue #5).
+
+Output follows the conventions of the per-repo release-notes template so these
+notes drop into the same release pipeline: an ``## Source changes: from -> to``
+title, themed ``###`` sections, bullet lists, and (via the narrator) an AI
+narrative over a ``<details>`` technical block. This is the source-side report —
+its sections cover outlines, spacing, features, designspace, metadata, and the
+build profile — complementary to the binary release diff's coverage/table sections.
+"""
+
+from __future__ import annotations
+
+from ufo_tdkit_report.model import FileKind, RangeReport, SourceReport
+
+# FileKind -> human section heading, and the order sections appear in.
+_SECTION_FOR_KIND: dict[FileKind, str] = {
+    FileKind.GLIF: "Outlines & glyphs",
+    FileKind.KERNING: "Spacing & kerning",
+    FileKind.GROUPS: "Spacing & kerning",
+    FileKind.FEATURES: "OpenType features",
+    FileKind.DESIGNSPACE: "Designspace",
+    FileKind.FONTINFO: "Metadata",
+    FileKind.PROFILE: "Build profile",
+}
+_SECTION_ORDER: list[str] = [
+    "Outlines & glyphs",
+    "Spacing & kerning",
+    "OpenType features",
+    "Designspace",
+    "Metadata",
+    "Build profile",
+]
+
+
+def _split_spec(spec: str) -> tuple[str, str]:
+    """Render a commit spec as ``from -> to`` endpoints."""
+    if ".." in spec:
+        base, _, head = spec.partition("..")
+        return (base or "HEAD~1", head or "HEAD")
+    return (f"{spec}~1", spec)
+
+
+def _render_facts(folded_facts) -> list[str]:
+    """Group folded facts into ordered ``### {section}`` Markdown blocks."""
+    by_section: dict[str, list[str]] = {}
+    for folded in folded_facts:
+        section = _SECTION_FOR_KIND.get(folded.file_kind, "Other")
+        by_section.setdefault(section, []).append(f"- {folded.summary}")
+
+    lines: list[str] = []
+    ordered = _SECTION_ORDER + [s for s in by_section if s not in _SECTION_ORDER]
+    for section in ordered:
+        bullets = by_section.get(section)
+        if not bullets:
+            continue
+        lines.append("")
+        lines.append(f"### {section}")
+        lines.extend(bullets)
+    return lines
+
+
+def render_report(report: SourceReport) -> str:
+    base, head = _split_spec(report.commit_spec)
+    lines: list[str] = [f"## Source changes: {base} → {head}"]
+    if report.profile_name:
+        lines.append(f"*Built with profile `{report.profile_name}`.*")
+    lines.append(
+        f"*{report.changed_file_count} changed files → {report.raw_fact_count} facts "
+        f"→ {len(report.folded_facts)} after folding.*"
+    )
+
+    if not report.folded_facts:
+        lines.append("")
+        lines.append("_No semantic source changes (binary-diff territory only)._")
+        return "\n".join(lines)
+
+    lines.extend(_render_facts(report.folded_facts))
+    return "\n".join(lines)
+
+
+def _commit_subject(folded_facts) -> str:
+    """A one-line commit subject synthesized from the folded facts."""
+    if not folded_facts:
+        return "No source changes"
+    summaries = [f.summary for f in folded_facts]
+    head = summaries[:2]
+    overflow = len(summaries) - len(head)
+    subject = "; ".join(head)
+    if overflow:
+        subject += f" (+{overflow} more)"
+    # Keep subjects reasonable for a commit line.
+    return subject if len(subject) <= 72 else subject[:69] + "…"
+
+
+def render_commit_message(report: SourceReport) -> str:
+    """Render facts as a commit message: subject line, blank, then grouped fact bullets."""
+    lines: list[str] = [_commit_subject(report.folded_facts)]
+    if not report.folded_facts:
+        return lines[0] + "\n"
+
+    lines.append("")
+    by_section: dict[str, list[str]] = {}
+    for folded in report.folded_facts:
+        section = _SECTION_FOR_KIND.get(folded.file_kind, "Other")
+        by_section.setdefault(section, []).append(f"- {folded.summary}")
+    ordered = _SECTION_ORDER + [s for s in by_section if s not in _SECTION_ORDER]
+    for section in ordered:
+        bullets = by_section.get(section)
+        if not bullets:
+            continue
+        lines.append(f"{section}:")
+        lines.extend(bullets)
+    return "\n".join(lines) + "\n"
+
+
+def render_range_report(report: RangeReport) -> str:
+    base, head = _split_spec(report.range_spec)
+    lines: list[str] = [f"## Source changes: {base} → {head}"]
+    if report.profile_name:
+        lines.append(f"*Built with profile `{report.profile_name}`.*")
+    netted = f" ({report.net_removed_count} netted out)" if report.net_removed_count else ""
+    lines.append(f"*{report.commit_count} commits, {len(report.folded_facts)} facts{netted}.*")
+
+    if report.commits:
+        lines.append("")
+        lines.append("### Commits")
+        for sha, subject in report.commits:
+            lines.append(f"- `{sha[:7]}` {subject}")
+
+    if not report.folded_facts:
+        lines.append("")
+        lines.append("_No semantic source changes across the range (binary-diff territory only)._")
+        return "\n".join(lines)
+
+    lines.extend(_render_facts(report.folded_facts))
+    return "\n".join(lines)
