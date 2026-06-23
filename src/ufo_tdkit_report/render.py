@@ -21,6 +21,7 @@ _SECTION_FOR_KIND: dict[FileKind, str] = {
     FileKind.DESIGNSPACE: "Designspace",
     FileKind.FONTINFO: "Metadata",
     FileKind.PROFILE: "Build profile",
+    FileKind.OTHER: "Other files",
 }
 _SECTION_ORDER: list[str] = [
     "Outlines & glyphs",
@@ -29,6 +30,7 @@ _SECTION_ORDER: list[str] = [
     "Designspace",
     "Metadata",
     "Build profile",
+    "Other files",
 ]
 
 

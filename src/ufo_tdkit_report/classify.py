@@ -11,6 +11,23 @@ from ufo_tdkit_report import designspace, features, glif, plists, profile
 from ufo_tdkit_report.model import ChangeFact, FactType, FileKind, Scope
 from ufo_tdkit_report.paths import classify_path, master_of
 
+# git status code -> human verb for constatation facts (T3).
+_STATUS_VERB = {
+    "A": "added", "M": "modified", "D": "removed",
+    "R": "renamed", "C": "copied", "T": "modified", "?": "added",
+}
+
+
+def status_verb(status: str | None) -> str:
+    """Map a git status code to a human verb (handles 2-char porcelain like `` M``, ``??``)."""
+    code = (status or "").strip() or "M"
+    return _STATUS_VERB.get(code[:1], "changed")
+
+
+def file_note(path: str, status: str | None) -> ChangeFact:
+    """A bare constatation fact: this tracked file changed (T3 — no silent drops)."""
+    return ChangeFact(FactType.FILE_CHANGED, FileKind.OTHER, Scope(), (path, status_verb(status)))
+
 
 @dataclass(frozen=True)
 class ChangedFile:

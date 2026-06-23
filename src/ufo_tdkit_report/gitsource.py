@@ -112,17 +112,18 @@ class GitSource:
             i += 2
         return changed
 
-    def list_working_changes(self) -> list[str]:
-        """Repo-relative paths changed in the working tree vs HEAD (staged + unstaged + untracked).
+    def list_working_changes(self) -> list[tuple[str, str]]:
+        """``(path, status_code)`` changed in the working tree vs HEAD (staged + unstaged + untracked).
 
         Parses ``git status --porcelain=v1 -z --untracked-files=all``. Rename/copy entries
         contribute both the new and the original path (the caller diffs each against HEAD).
+        The status code is the 2-char porcelain code (e.g. ``A ``, `` M``, ``??``, ``R ``).
         """
         out = self._run("status", "--porcelain=v1", "-z", "--untracked-files=all").decode(
             "utf-8", "replace"
         )
         tokens = out.split("\0")
-        paths: list[str] = []
+        changes: list[tuple[str, str]] = []
         i = 0
         while i < len(tokens):
             tok = tokens[i]
@@ -135,13 +136,13 @@ class GitSource:
                 # -z rename/copy: this token holds the new path, the next holds the original.
                 orig = tokens[i + 1] if i + 1 < len(tokens) else ""
                 if orig:
-                    paths.append(orig)
-                paths.append(path)
+                    changes.append((orig, code))
+                changes.append((path, code))
                 i += 2
                 continue
-            paths.append(path)
+            changes.append((path, code))
             i += 1
-        return paths
+        return changes
 
     def read_blobs(self, specs: list[str]) -> dict[str, bytes]:
         """Fetch many blobs in one ``git cat-file --batch`` call. Missing -> absent."""

@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- No changed tracked file is silently dropped: any non-source file (or a known
+  source file that produced no semantic delta, or a whole-file add/remove) now
+  surfaces as a bare constatation under an **Other files** section
+  (`added`/`removed`/`modified`), folded into one line. `.gitignore` is still honoured.
 - Default AI model for `--ai-note` is now `claude-sonnet-4-6` (was `claude-opus-4-8`);
   override per-run with `--ai-model`.
 - The attribution credit now also appears on commit messages (`tdreport <repo>` /

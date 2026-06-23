@@ -43,6 +43,8 @@ _ANCHOR_TYPES = {FactType.ANCHOR_ADDED, FactType.ANCHOR_REMOVED, FactType.ANCHOR
 
 def _key_detail(fact: ChangeFact) -> tuple:
     """The stable identity carried in the fold key (per-master variation excluded)."""
+    if fact.fact_type is FactType.FILE_CHANGED:
+        return ()  # all "other file" constatations fold into one group (T3)
     if fact.fact_type in _GLYPH_VALUE_TYPES:
         return ()  # identity is the glyph alone; deltas aggregate in the summary
     if fact.fact_type in _COMPONENT_TYPES:
@@ -228,6 +230,15 @@ def _summarize(key: tuple, group: list[ChangeFact], schema=None) -> str:
                 if text:
                     line += f" — {text}"
         return line
+
+    if fact_type is FactType.FILE_CHANGED:
+        # detail = (path, verb); list distinct files (capped). The "Other files"
+        # section heading gives context, so the line itself just enumerates them.
+        pairs = sorted({(f.detail[0], f.detail[1]) for f in group if f.detail})
+        cap = 8
+        shown = ", ".join(f"`{path}` ({verb})" for path, verb in pairs[:cap])
+        more = f" +{len(pairs) - cap} more" if len(pairs) > cap else ""
+        return f"{shown}{more}"
 
     if fact_type is FactType.AXIS_CHANGED:
         return "designspace axes changed"

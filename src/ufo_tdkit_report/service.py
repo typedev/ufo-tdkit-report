@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ufo_tdkit_report.classify import ChangedFile, classify_change
+from ufo_tdkit_report.classify import ChangedFile, classify_change, file_note
 from ufo_tdkit_report.gitsource import GitSource
 from ufo_tdkit_report.model import SourceReport
 from ufo_tdkit_report.paths import classify_path
@@ -93,10 +93,19 @@ def _extract_raw(git: GitSource, base: str, head: str, *, family: str | None = N
     blobs = git.read_blobs(specs)
 
     facts = []
+    classified: set[str] = set()
     for cf in relevant:
         old_blob = _decode(blobs.get(cf.old_spec)) if cf.old_spec else None
         new_blob = _decode(blobs.get(cf.new_spec)) if cf.new_spec else None
-        facts.extend(classify_change(ChangedFile(cf.path, cf.status, old_blob, new_blob), family=family))
+        produced = classify_change(ChangedFile(cf.path, cf.status, old_blob, new_blob), family=family)
+        facts.extend(produced)
+        if produced:
+            classified.add(cf.path)
+    # T3: every changed file that produced no semantic fact (unknown type, whole-file
+    # add/remove, or no semantic delta) still surfaces as a bare constatation.
+    for cf in changed:
+        if cf.path not in classified:
+            facts.append(file_note(cf.path, cf.status))
     return facts, len(changed)
 
 
@@ -109,25 +118,33 @@ def extract_working_facts(
     """Extract facts for the **uncommitted** working tree (HEAD ↔ disk)."""
     repo = str(repo)
     git = GitSource(repo)
-    paths = git.list_working_changes()
-    relevant = [p for p in paths if classify_path(p) is not None]
+    changes = git.list_working_changes()  # [(path, status_code), ...]
+    relevant = [(p, st) for (p, st) in changes if classify_path(p) is not None]
 
-    old_specs = [f"HEAD:{p}" for p in relevant]
+    old_specs = [f"HEAD:{p}" for (p, _) in relevant]
     blobs = git.read_blobs(old_specs)
 
     facts = []
-    for path in relevant:
+    classified: set[str] = set()
+    for path, status in relevant:
         old_blob = _decode(blobs.get(f"HEAD:{path}"))  # None when the file is new vs HEAD
         disk = Path(repo) / path
         new_blob = disk.read_text(encoding="utf-8", errors="replace") if disk.is_file() else None
-        facts.extend(classify_change(ChangedFile(path, "M", old_blob, new_blob), family=family))
+        produced = classify_change(ChangedFile(path, status, old_blob, new_blob), family=family)
+        facts.extend(produced)
+        if produced:
+            classified.add(path)
+    # T3: surface every other changed tracked file as a bare constatation.
+    for path, status in changes:
+        if path not in classified:
+            facts.append(file_note(path, status))
 
     folded = fold_facts(facts, threshold=threshold, schema=default_profile_schema())
     return SourceReport(
         commit_spec="working tree",
         folded_facts=folded,
         raw_fact_count=len(facts),
-        changed_file_count=len(paths),
+        changed_file_count=len(changes),
     )
 
 

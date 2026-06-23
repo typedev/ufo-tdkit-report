@@ -29,6 +29,7 @@ class FileKind(Enum):
     FEATURES = "features"
     DESIGNSPACE = "designspace"
     PROFILE = "profile"
+    OTHER = "other"  # any other tracked file — surfaced as a bare constatation (T3)
 
 
 class FactType(Enum):
@@ -74,6 +75,8 @@ class FactType(Enum):
     PROFILE_OPTION_ADDED = "profile-option-added"
     PROFILE_OPTION_REMOVED = "profile-option-removed"
     PROFILE_OPTION_CHANGED = "profile-option-changed"
+    # any other changed tracked file (no semantic facts) — constatation only (T3)
+    FILE_CHANGED = "file-changed"
 
 
 # --------------------------------------------------------------------------- #
