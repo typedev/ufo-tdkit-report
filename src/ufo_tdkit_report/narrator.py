@@ -237,8 +237,11 @@ def narrate_commit(
         "Stay strictly within these facts.\n\n"
         f"{facts}\n"
     )
-    return _call(_COMMIT_SYSTEM_PROMPT, user, model=model, api_key=api_key,
-                 transport=transport, max_tokens=max_tokens, timeout=timeout).rstrip() + "\n"
+    from ufo_tdkit_report.render import _credit
+
+    msg = _call(_COMMIT_SYSTEM_PROMPT, user, model=model, api_key=api_key,
+                transport=transport, max_tokens=max_tokens, timeout=timeout).rstrip()
+    return f"{msg}\n\n{_credit(ai=True, model=model)}\n"
 
 
 def narrate(
