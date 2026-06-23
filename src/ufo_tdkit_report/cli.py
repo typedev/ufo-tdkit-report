@@ -64,7 +64,7 @@ Examples:
         "--ai-note", action="store_true",
         help="add a grounded AI narrative (opt-in; needs ANTHROPIC_API_KEY; never publishes)",
     )
-    parser.add_argument("--ai-model", default="claude-opus-4-8", help="model for --ai-note")
+    parser.add_argument("--ai-model", default="claude-sonnet-4-6", help="model for --ai-note")
     parser.add_argument("-y", "--yes", action="store_true", help="auto-confirm the 'commit this?' prompt")
     return parser
 

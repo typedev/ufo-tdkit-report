@@ -75,7 +75,7 @@ def _ensure_gitignored(repo: str) -> None:
         pass
 
 
-def inspect(target: str | None = None, *, ai: bool = False, model: str = "claude-opus-4-8") -> tuple[str, str, bool]:
+def inspect(target: str | None = None, *, ai: bool = False, model: str = "claude-sonnet-4-6") -> tuple[str, str, bool]:
     """Inspect uncommitted changes; write the drafted message to the report file.
 
     Returns ``(repo, message_text, has_changes)``. Does not print — the CLI does.
@@ -99,7 +99,7 @@ def inspect(target: str | None = None, *, ai: bool = False, model: str = "claude
     return repo, text, has_changes
 
 
-def commit(target: str | None = None, *, ai: bool = False, model: str = "claude-opus-4-8") -> tuple[int, str]:
+def commit(target: str | None = None, *, ai: bool = False, model: str = "claude-sonnet-4-6") -> tuple[int, str]:
     """Commit the working tree using the drafted message (generating it if absent).
 
     Returns ``(exit_code, message)``.

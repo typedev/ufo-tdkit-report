@@ -92,7 +92,7 @@ def test_narrate_wires_transport_and_attaches_facts():
     assert captured["url"].endswith("/v1/messages")
     assert captured["headers"]["x-api-key"] == "test-key"
     assert captured["headers"]["anthropic-version"] == "2023-06-01"
-    assert b"claude-opus-4-8" in captured["body"]
+    assert b"claude-sonnet-4-6" in captured["body"]  # default model
 
 
 def test_narrate_missing_key_raises(monkeypatch):

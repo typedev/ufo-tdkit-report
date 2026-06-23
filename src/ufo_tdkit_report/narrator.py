@@ -103,7 +103,7 @@ def resolve_api_key(repo: str | Path = ".", *, explicit: str | None = None) -> s
 
 API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
-DEFAULT_MODEL = "claude-opus-4-8"
+DEFAULT_MODEL = "claude-sonnet-4-6"
 DEFAULT_MAX_TOKENS = 2048
 DEFAULT_TIMEOUT = 60
 
