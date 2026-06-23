@@ -143,8 +143,16 @@ Rules — follow them exactly:
 
 
 def _facts_block(report: SourceReport | RangeReport) -> str:
-    """The deterministic facts as the model sees them (and as we attach for verify)."""
-    return report.render_text()
+    """The deterministic facts as the model sees them (and as we attach for verify).
+
+    Rendered without the attribution footer — the narrated output carries its own
+    single AI footer, so the embedded ``<details>`` report must not repeat it.
+    """
+    from ufo_tdkit_report.render import render_range_report, render_report
+
+    if isinstance(report, RangeReport):
+        return render_range_report(report, footer=False)
+    return render_report(report, footer=False)
 
 
 def build_messages(report: SourceReport | RangeReport) -> tuple[str, str]:
@@ -266,10 +274,13 @@ def narrate(
     data = transport(API_URL, headers, json.dumps(payload).encode("utf-8"), timeout)
     narrative = parse_message_response(data)
 
+    from ufo_tdkit_report.render import attribution
+
     facts = _facts_block(report)
     return (
         f"{narrative}\n\n"
         f"> AI-drafted from deterministic facts — verify before publishing.\n\n"
         f"<details>\n<summary>Technical details (deterministic, auto-generated — verify here)</summary>\n\n"
-        f"{facts}\n\n</details>\n"
+        f"{facts}\n\n</details>\n\n"
+        f"{attribution(ai=True, model=model)}\n"
     )
