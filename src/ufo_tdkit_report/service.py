@@ -12,7 +12,7 @@ from ufo_tdkit_report.classify import ChangedFile, classify_change, file_note
 from ufo_tdkit_report.gitsource import GitSource
 from ufo_tdkit_report.model import SourceReport
 from ufo_tdkit_report.paths import classify_path
-from ufo_tdkit_report.rollup import DEFAULT_THRESHOLD, default_profile_schema, fold_facts
+from ufo_tdkit_report.rollup import DEFAULT_THRESHOLD, fold_facts
 
 
 def _decode(blob: bytes | None) -> str | None:
@@ -54,8 +54,13 @@ def extract_facts(
     threshold: int = DEFAULT_THRESHOLD,
     profile: str | None = None,
     family: str | None = None,
+    schema=None,
 ) -> SourceReport:
-    """Extract deterministic source-change facts for a commit (range)."""
+    """Extract deterministic source-change facts for a commit (range).
+
+    ``schema`` (optional, duck-typed) is injected by a build tool to enrich
+    build-profile facts with grounded consequences; None keeps the bare line.
+    """
     repo = str(repo)
     git = GitSource(repo)
     base, head = git.resolve_spec(commit_spec)
@@ -63,7 +68,7 @@ def extract_facts(
 
     facts, changed_file_count = _extract_raw(git, base, head, family=family)
 
-    folded = fold_facts(facts, threshold=threshold, schema=default_profile_schema())
+    folded = fold_facts(facts, threshold=threshold, schema=schema)
     profile_name, profile_options = _resolve_profile(repo, profile)
 
     return SourceReport(
@@ -114,8 +119,12 @@ def extract_working_facts(
     *,
     threshold: int = DEFAULT_THRESHOLD,
     family: str | None = None,
+    schema=None,
 ) -> SourceReport:
-    """Extract facts for the **uncommitted** working tree (HEAD ↔ disk)."""
+    """Extract facts for the **uncommitted** working tree (HEAD ↔ disk).
+
+    ``schema`` (optional, duck-typed) enriches build-profile facts when injected.
+    """
     repo = str(repo)
     git = GitSource(repo)
     changes = git.list_working_changes()  # [(path, status_code), ...]
@@ -139,7 +148,7 @@ def extract_working_facts(
         if path not in classified:
             facts.append(file_note(path, status))
 
-    folded = fold_facts(facts, threshold=threshold, schema=default_profile_schema())
+    folded = fold_facts(facts, threshold=threshold, schema=schema)
     return SourceReport(
         commit_spec="working tree",
         folded_facts=folded,

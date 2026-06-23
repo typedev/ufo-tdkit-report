@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from ufo_tdkit_report.gitsource import GitSource
 from ufo_tdkit_report.model import ChangeFact, FactType, RangeReport
-from ufo_tdkit_report.rollup import DEFAULT_THRESHOLD, default_profile_schema, fold_facts
+from ufo_tdkit_report.rollup import DEFAULT_THRESHOLD, fold_facts
 from ufo_tdkit_report.service import _resolve_profile, commit_facts
 
 # Inverse fact-type pairs and the entity key that must match for them to cancel.
@@ -86,8 +86,14 @@ def aggregate_range(
     threshold: int = DEFAULT_THRESHOLD,
     profile: str | None = None,
     family: str | None = None,
+    schema=None,
 ) -> RangeReport:
-    """Aggregate facts across every commit in ``spec`` (a ``base..head`` range)."""
+    """Aggregate facts across every commit in ``spec`` (a ``base..head`` range).
+
+    ``schema`` (optional, duck-typed ``get(key).consequence_text(off)``) is injected by
+    a build tool to enrich build-profile facts with grounded consequences; None keeps
+    the schema-agnostic line.
+    """
     repo = str(repo)
     git = GitSource(repo)
     base, head = git.resolve_spec(spec)
@@ -100,7 +106,7 @@ def aggregate_range(
         all_facts.extend(commit_facts(repo, commit.sha, family=family))
 
     kept, net_removed = net_out(all_facts)
-    folded = fold_facts(kept, threshold=threshold, schema=default_profile_schema())
+    folded = fold_facts(kept, threshold=threshold, schema=schema)
     profile_name, profile_options = _resolve_profile(repo, profile)
 
     return RangeReport(

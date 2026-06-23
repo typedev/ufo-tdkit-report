@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `extract_facts` / `extract_working_facts` / `aggregate_range` accept an optional
+  `schema=` to inject build-profile consequence knowledge (the seam a build tool uses).
 - No changed tracked file is silently dropped: any non-source file (or a known
   source file that produced no semantic delta, or a whole-file add/remove) now
   surfaces as a bare constatation under an **Other files** section
