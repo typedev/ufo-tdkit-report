@@ -26,13 +26,26 @@ def _git(repo: str, *args: str, input_text: str | None = None):
 
 
 def resolve_repo(target: str | None = None) -> str:
-    """Git root for a target: None -> cwd; a registered name -> its path; else a path."""
+    """Git root for a target: None -> cwd; a registered name -> its path; else a path.
+
+    A bare target that is neither a registered name nor an existing path is an ERROR —
+    we never silently fall back to the cwd repo (that would report on the wrong project).
+    """
     if not target:
         candidate = "."
     else:
         from ufo_tdkit_report import registry
 
-        candidate = registry.resolve(target) or target
+        registered = registry.resolve(target)
+        if registered:
+            candidate = registered
+        elif os.path.exists(target):
+            candidate = target
+        else:
+            raise RuntimeError(
+                f"unknown repo '{target}': not a registered name "
+                f"(register it with `tdreport add {target} <path>`) and not an existing path"
+            )
     base = candidate if os.path.isdir(candidate) else os.path.dirname(os.path.abspath(candidate))
     if not base:
         base = "."

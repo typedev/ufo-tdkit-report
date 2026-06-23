@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Fixed
+- `resolve_repo`: a bare target that is neither a registered name nor an existing path
+  now raises a clear error instead of silently falling back to the cwd repo (which made
+  `tdreport <unknown-name>` report "no changes" against the wrong project).
+
 ## [0.1.0] - 2026-06-23
 
 ### Added
