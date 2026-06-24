@@ -26,6 +26,19 @@ def _confirm(question: str, *, assume_yes: bool = False) -> bool:
     return answer in ("y", "yes")
 
 
+def _read_secret(prompt: str) -> str:
+    """Read a secret without echoing it (interactive TTY), or from a pipe (CI)."""
+    if sys.stdin.isatty():
+        import getpass
+
+        try:
+            return getpass.getpass(prompt).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return ""
+    return sys.stdin.readline().strip()
+
+
 def _is_range(arg: str | None) -> bool:
     """True if ``arg`` is a commit range (``a..b``) → committed-history modes.
 
@@ -49,12 +62,13 @@ Examples:
   tdreport myfont commit         # commit a registered repo's working tree
   tdreport ~/fonts/MyFont        # commit assistant for an explicit repo path
   tdreport add myfont ~/fonts/MyFont   # register a name -> repo path
+  tdreport set-key sk-ant-...     # store the Anthropic API key (owner-only) for --ai-note
   tdreport v2.005..v2.006        # committed-history report for a range (cwd repo)
   tdreport --notes v2.005..HEAD  # aggregate every commit in the range into release notes
         """,
     )
-    parser.add_argument("target", nargs="?", help="repo selector (name/path), a commit range, or 'add'")
-    parser.add_argument("rest", nargs="*", help="'commit', or for 'add': <name> <path>")
+    parser.add_argument("target", nargs="?", help="repo selector (name/path), a commit range, 'add', or 'set-key'")
+    parser.add_argument("rest", nargs="*", help="'commit'; for 'add': <name> <path>; for 'set-key': <api-key>")
     parser.add_argument("--repo", default=".", help="git repo for committed-history modes (default: cwd)")
     parser.add_argument("--notes", action="store_true", help="aggregate every commit in the range into notes")
     parser.add_argument("--profile", help="path to a build-profile YAML to record in the report header")
@@ -62,7 +76,7 @@ Examples:
     parser.add_argument("--json", dest="json_output", action="store_true", help="emit the report as JSON")
     parser.add_argument(
         "--ai-note", action="store_true",
-        help="add a grounded AI narrative (opt-in; needs ANTHROPIC_API_KEY; never publishes)",
+        help="add a grounded AI narrative (opt-in; needs a key via `tdreport set-key`; never publishes)",
     )
     parser.add_argument("--ai-model", default="claude-sonnet-4-6", help="model for --ai-note")
     parser.add_argument("-y", "--yes", action="store_true", help="auto-confirm the 'commit this?' prompt")
@@ -85,6 +99,20 @@ def main(argv: list[str] | None = None) -> int:
         name, path = args.rest
         stored = registry.add(name, path)
         print(f"registered '{name}' -> {stored}")
+        return 0
+
+    # --- key storage: `tdreport set-key [<key>]` (single owner-only home for the AI key) ---
+    if args.target == "set-key":
+        from ufo_tdkit_report.narrator import store_api_key
+
+        # An inline key lands in shell history; prefer prompting/stdin when omitted.
+        key = args.rest[0] if args.rest else _read_secret("Anthropic API key: ")
+        try:
+            path = store_api_key(key)
+        except ValueError as exc:
+            print(f"error: {exc}")
+            return 1
+        print(f"stored Anthropic API key in {path} (permissions 0600)")
         return 0
 
     # --- committed-history modes: a range or --notes (repo = --repo / cwd) ---
@@ -113,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
             from ufo_tdkit_report.narrator import resolve_api_key
 
             try:
-                print(narrate(report, model=args.ai_model, api_key=resolve_api_key(args.repo)))
+                print(narrate(report, model=args.ai_model, api_key=resolve_api_key()))
             except NarratorError as exc:
                 print(f"error: AI narration failed: {exc}")
                 return 1

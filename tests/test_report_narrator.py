@@ -4,6 +4,8 @@ No network: the prompt assembly and response parsing are pure, and `narrate` tak
 an injected transport so the HTTP layer is never exercised here.
 """
 
+import stat
+
 import pytest
 
 from ufo_tdkit_report.model import FactType, FileKind, FoldedFact, RangeReport
@@ -11,10 +13,12 @@ from ufo_tdkit_report.narrator import (
     NarratorError,
     build_messages,
     config_dir,
+    config_env_path,
     narrate,
     parse_message_response,
     read_dotenv_key,
     resolve_api_key,
+    store_api_key,
 )
 
 
@@ -95,10 +99,10 @@ def test_narrate_wires_transport_and_attaches_facts():
     assert b"claude-sonnet-4-6" in captured["body"]  # default model
 
 
-def test_narrate_missing_key_raises(monkeypatch):
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    with pytest.raises(NarratorError, match="ANTHROPIC_API_KEY"):
-        narrate(_report(), transport=lambda *a, **k: {})
+def test_narrate_missing_key_raises():
+    # No env fallback any more: a missing api_key is an explicit error.
+    with pytest.raises(NarratorError, match="set-key"):
+        narrate(_report(), api_key=None, transport=lambda *a, **k: {})
 
 
 def test_read_dotenv_key_parses_forms(tmp_path):
@@ -118,37 +122,53 @@ def test_read_dotenv_key_plain_and_missing(tmp_path):
     assert read_dotenv_key([tmp_path / "nope.env"]) is None
 
 
-def test_resolve_api_key_precedence(tmp_path, monkeypatch):
-    env_file = tmp_path / ".env"
-    env_file.write_text("ANTHROPIC_API_KEY=from-dotenv\n")
+def test_resolve_api_key_explicit_wins(tmp_path, monkeypatch):
+    # The explicit argument short-circuits before any disk access.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    assert resolve_api_key(explicit="explicit") == "explicit"
 
-    # explicit wins over everything
+
+def test_resolve_api_key_ignores_env_and_local_dotenv(tmp_path, monkeypatch):
+    # The two sources are explicit + <config>/.env ONLY: not the process env,
+    # not a repo/cwd .env. A stray export or local .env must not leak in.
     monkeypatch.setenv("ANTHROPIC_API_KEY", "from-env")
-    assert resolve_api_key(tmp_path, explicit="explicit") == "explicit"
-    # env wins over .env
-    assert resolve_api_key(tmp_path) == "from-env"
-    # falls back to .env when env is unset
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    assert resolve_api_key(tmp_path) == "from-dotenv"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env").write_text("ANTHROPIC_API_KEY=from-local-dotenv\n")
+    monkeypatch.chdir(repo)
+    assert resolve_api_key() is None  # env + local .env are both ignored
 
 
-def test_resolve_api_key_from_tool_config(tmp_path, monkeypatch):
-    # Key in the tool's config dir is read from any repo (no system-wide export).
+def test_resolve_api_key_from_config_only(tmp_path, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    repo = tmp_path / "some-font-repo"
-    repo.mkdir()
-    monkeypatch.chdir(repo)  # isolate cwd so a real ./.env isn't read
     config = tmp_path / "cfg" / "ufo-tdkit-report"
     config.mkdir(parents=True)
     assert config_dir() == config  # honors XDG_CONFIG_HOME
-    # no .env in repo or cwd → falls through to config/.env
     (config / ".env").write_text("ANTHROPIC_API_KEY=from-tdkit-config\n")
-    assert resolve_api_key(repo) == "from-tdkit-config"
-    # plain key file also works
-    (config / ".env").unlink()
-    (config / "anthropic_key").write_text("sk-ant-plainfile\n")
-    assert resolve_api_key(repo) == "sk-ant-plainfile"
+    assert resolve_api_key() == "from-tdkit-config"
+
+
+def test_store_api_key_writes_single_file_owner_only(tmp_path, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+
+    path = store_api_key("  sk-ant-stored  ")  # whitespace is trimmed
+    assert path == config_env_path()
+    assert path.read_text() == "ANTHROPIC_API_KEY=sk-ant-stored\n"
+    # 0600: not readable/writable by group or other.
+    mode = stat.S_IMODE(path.stat().st_mode)
+    assert mode == 0o600
+    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    # Round-trips through the resolver.
+    assert resolve_api_key() == "sk-ant-stored"
+
+
+def test_store_api_key_rejects_empty(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    with pytest.raises(ValueError, match="empty"):
+        store_api_key("   ")
 
 
 if __name__ == "__main__":

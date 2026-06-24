@@ -27,7 +27,13 @@ from ufo_tdkit_report.model import (
     Scope,
     SourceReport,
 )
-from ufo_tdkit_report.narrator import NarratorError, narrate, narrate_commit, resolve_api_key
+from ufo_tdkit_report.narrator import (
+    NarratorError,
+    narrate,
+    narrate_commit,
+    resolve_api_key,
+    store_api_key,
+)
 from ufo_tdkit_report.service import commit_facts, extract_facts, extract_working_facts
 
 __all__ = [
@@ -39,6 +45,7 @@ __all__ = [
     "narrate",
     "narrate_commit",
     "resolve_api_key",
+    "store_api_key",
     "NarratorError",
     "SourceReport",
     "RangeReport",

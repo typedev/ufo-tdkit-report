@@ -74,32 +74,58 @@ def config_dir() -> Path:
     return Path(base) / CONFIG_DIR_NAME
 
 
-def resolve_api_key(repo: str | Path = ".", *, explicit: str | None = None) -> str | None:
-    """Resolve the API key without leaking it system-wide.
+def config_env_path() -> Path:
+    """The single file the Anthropic API key lives in: ``<config>/.env``."""
+    return config_dir() / ".env"
 
-    Order: explicit arg → ``ANTHROPIC_API_KEY`` env → ``.env`` in the repo/cwd →
-    this tool's own config (``<config>/.env`` or a plain ``<config>/anthropic_key`` file) —
-    so the key can live once in ``~/.config/ufo-tdkit-report/`` and be read from any repo.
+
+def _secure(path: Path) -> None:
+    """Best-effort: lock ``path`` to owner-only (0600) and its parent dir to 0700.
+
+    A no-op on platforms without POSIX permission bits (e.g. Windows), where the
+    user-profile directory ACL already governs access. Errors are swallowed so a
+    read/store never fails just because the perms could not be tightened.
+    """
+    try:
+        path.chmod(0o600)
+        path.parent.chmod(0o700)
+    except (OSError, NotImplementedError):
+        pass
+
+
+def store_api_key(key: str, *, var: str = _API_KEY_VAR) -> Path:
+    """Write the API key to its single home (``<config>/.env``), owner-only.
+
+    Creates the config dir if needed and locks the file down to 0600 so the secret is
+    not group/world-readable. Returns the path written. Raises ``ValueError`` on an
+    empty key.
+    """
+    key = key.strip()
+    if not key:
+        raise ValueError("refusing to store an empty API key")
+    path = config_env_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"{var}={key}\n", encoding="utf-8")
+    _secure(path)
+    return path
+
+
+def resolve_api_key(*, explicit: str | None = None) -> str | None:
+    """Resolve the Anthropic API key from the two — and only two — supported sources.
+
+    Order: an explicit argument (a library caller passing its own key) → ``<config>/.env``
+    (the single on-disk home, written by ``tdreport set-key``). Nothing else is consulted:
+    not the process environment, not the repo, not the cwd. The key therefore lives in
+    exactly one place, owner-only, and cannot leak in from a stray ``.env`` or a shell
+    ``export`` that happens to be set.
     """
     if explicit:
         return explicit
-    from_env = os.environ.get(_API_KEY_VAR)
-    if from_env:
-        return from_env
-    config = config_dir()
-    key = read_dotenv_key([Path(repo) / ".env", Path.cwd() / ".env", config / ".env"])
+    path = config_env_path()
+    key = read_dotenv_key([path])
     if key:
-        return key
-    # Plain key file: the whole file is just the key.
-    key_file = config / "anthropic_key"
-    if key_file.is_file():
-        try:
-            text = key_file.read_text(encoding="utf-8").strip()
-        except OSError:
-            text = ""
-        if text:
-            return text.splitlines()[0].strip()
-    return None
+        _secure(path)  # tighten perms on read too, in case the file was hand-created
+    return key
 
 API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
@@ -187,6 +213,14 @@ class NarratorError(RuntimeError):
     """Raised when narration cannot be produced (no key, network, refusal, bad shape)."""
 
 
+def _missing_key_error() -> NarratorError:
+    """A NarratorError that names the single place to put the key."""
+    return NarratorError(
+        f"no Anthropic API key — store one with `tdreport set-key <KEY>` "
+        f"(saved owner-only to {config_env_path()}), or pass it explicitly"
+    )
+
+
 def _http_post(url: str, headers: dict, body: bytes, timeout: int) -> dict:
     request = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
@@ -203,9 +237,9 @@ def _http_post(url: str, headers: dict, body: bytes, timeout: int) -> dict:
 
 
 def _call(system: str, user: str, *, model, api_key, transport, max_tokens, timeout) -> str:
-    key = api_key or os.environ.get(_API_KEY_VAR)
-    if not key:
-        raise NarratorError(f"{_API_KEY_VAR} is not set (AI narration is opt-in)")
+    if not api_key:
+        raise _missing_key_error()
+    key = api_key
     payload = {
         "model": model,
         "max_tokens": max_tokens,
@@ -258,9 +292,9 @@ def narrate(
     The deterministic facts are always appended in a ``<details>`` block so the
     ground truth travels with the prose and can be verified before publishing.
     """
-    key = api_key or os.environ.get(_API_KEY_VAR)
-    if not key:
-        raise NarratorError(f"{_API_KEY_VAR} is not set (AI narration is opt-in)")
+    if not api_key:
+        raise _missing_key_error()
+    key = api_key
 
     system, user = build_messages(report)
     payload = {

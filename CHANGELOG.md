@@ -6,8 +6,20 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `tdreport set-key <KEY>` stores the Anthropic API key in the single supported
+  on-disk home (`<config>/.env`) with owner-only permissions (`0600`); with no argument
+  it prompts without echoing (or reads stdin), so the key never lands in shell history.
+  Exposed in the library as `store_api_key()`.
 - `extract_facts` / `extract_working_facts` / `aggregate_range` accept an optional
   `schema=` to inject build-profile consequence knowledge (the seam a build tool uses).
+
+### Changed
+- **AI API key resolution narrowed to two sources** (was six): an explicit argument and
+  `<config>/.env` only. The process environment (`ANTHROPIC_API_KEY`), a repo `.env`, a
+  cwd `.env`, and the plain `<config>/anthropic_key` file are no longer consulted — so the
+  secret lives in exactly one owner-only file and cannot leak in from a stray export or a
+  project `.env`. `resolve_api_key()` lost its `repo` parameter (now keyword-only
+  `explicit=`); `tdreport set-key` is the supported way to populate the key.
 - No changed tracked file is silently dropped: any non-source file (or a known
   source file that produced no semantic delta, or a whole-file add/remove) now
   surfaces as a bare constatation under an **Other files** section

@@ -88,7 +88,7 @@ def inspect(target: str | None = None, *, ai: bool = False, model: str = "claude
         from ufo_tdkit_report.narrator import narrate_commit
         from ufo_tdkit_report.narrator import resolve_api_key as _resolve_key
 
-        text = narrate_commit(report, model=model, api_key=_resolve_key(repo))
+        text = narrate_commit(report, model=model, api_key=_resolve_key())
     else:
         text = render_commit_message(report)
 

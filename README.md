@@ -17,7 +17,8 @@ Standalone and build-tool-agnostic: it needs **git**, not any particular font co
 - **Commit assistant** — draft a commit message from the working tree.
 - **Range / release notes** — aggregate a tag/commit range into notes.
 - **Grounded AI narration** (opt-in) — `--ai-note` turns the deterministic facts into
-  prose, attaching the facts verbatim for verification. Needs `ANTHROPIC_API_KEY`.
+  prose, attaching the facts verbatim for verification. Needs an Anthropic API key
+  (see [AI narration](#ai-narration-opt-in)).
 
 ## Install
 
@@ -41,6 +42,50 @@ tdreport ~/fonts/MyFont        # or an explicit path
 # Committed history
 tdreport v2.005..v2.006        # endpoint diff of a range (cwd repo)
 tdreport --notes v2.005..HEAD  # aggregate every commit in the range into release notes
+```
+
+## AI narration (opt-in)
+
+AI narration is **off** unless you pass `--ai-note`. When you do, the tool needs an
+Anthropic API key, which it reads from a **single place**: its own config file,
+
+| OS      | path                                                     |
+| ------- | -------------------------------------------------------- |
+| Linux   | `~/.config/ufo-tdkit-report/.env` (or `$XDG_CONFIG_HOME/ufo-tdkit-report/.env`) |
+| macOS   | `~/Library/Application Support/ufo-tdkit-report/.env`    |
+| Windows | `%APPDATA%\ufo-tdkit-report\.env`                        |
+
+Set it once with `set-key` — the file is created with owner-only permissions (`0600`):
+
+```bash
+tdreport set-key sk-ant-...     # store the key (also accepts it on stdin: `… | tdreport set-key`)
+```
+
+Running `tdreport set-key` with no argument prompts for the key without echoing it
+(so it never lands in your shell history). The key lives in that one file and nowhere
+else: the tool deliberately does **not** read `ANTHROPIC_API_KEY` from the environment,
+nor a `.env` in the repo or cwd — so a stray export or a project `.env` can't leak in.
+
+Then narrate:
+
+```bash
+tdreport --ai-note                          # commit message, AI-drafted
+tdreport --notes v2.005..HEAD --ai-note     # release notes, AI-drafted
+tdreport --ai-note --ai-model claude-opus-4-8   # pick the model (default: claude-sonnet-4-6)
+```
+
+The narrator is strictly grounded — it may only restate the deterministic facts, which
+are always attached verbatim in a `<details>` block — and it never publishes anything.
+
+In code, pass the key explicitly (the only other accepted source) or store it once:
+
+```python
+from ufo_tdkit_report import extract_facts, narrate, resolve_api_key, store_api_key
+
+store_api_key("sk-ant-...")                 # write it to <config>/.env, 0600 (one-time)
+report = extract_facts(".", "HEAD~1..HEAD")
+print(narrate(report, model="claude-opus-4-8", api_key=resolve_api_key()))
+print(narrate(report, api_key="sk-ant-..."))   # …or supply it explicitly per call
 ```
 
 ## Library

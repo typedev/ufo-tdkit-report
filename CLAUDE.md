@@ -94,8 +94,11 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   attached verbatim in a `<details>` block for verification. The Anthropic call is a plain
   `urllib` POST (no `anthropic` SDK, no third-party deps) with an injectable `transport` so
   prompt assembly and parsing are testable offline. Default model is `claude-sonnet-4-6`
-  (override with `--ai-model`). The API key is resolved from this tool's own config dir
-  (`~/.config/ufo-tdkit-report/`), never written to the process environment.
+  (override with `--ai-model`). The API key has exactly **two** sources: an explicit
+  argument (`resolve_api_key(explicit=)` / the `api_key=` param), and `<config>/.env`
+  (`config_env_path()`, written 0600 by `store_api_key` / `tdreport set-key`). It is
+  *not* read from the process environment, a repo `.env`, or the cwd — don't reintroduce
+  those fallbacks. Resolution and key storage are pure-ish and unit-tested without network.
 
 ## Testing conventions
 
