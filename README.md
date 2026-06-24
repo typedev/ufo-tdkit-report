@@ -22,8 +22,45 @@ Standalone and build-tool-agnostic: it needs **git**, not any particular font co
 
 ## Install
 
+This is a command-line tool, so install it as a **global CLI** — that puts the
+`tdreport` command on your `PATH` while keeping its dependencies isolated from your
+projects. Either of the standard tools works:
+
 ```bash
-pip install ufo-tdkit-report
+pipx install ufo-tdkit-report      # https://pipx.pypa.io
+# or
+uv tool install ufo-tdkit-report   # https://docs.astral.sh/uv
+```
+
+Both expose `tdreport` system-wide for your user (no `sudo`, no virtualenv to activate);
+upgrade with `pipx upgrade ufo-tdkit-report` / `uv tool upgrade ufo-tdkit-report`.
+
+Not published to an index yet? Install straight from the repository:
+
+```bash
+pipx install git+https://github.com/typedev/ufo-tdkit-report.git
+# or, from a local checkout
+uv tool install .
+```
+
+<details>
+<summary>Other ways</summary>
+
+```bash
+pip install --user ufo-tdkit-report   # user-site install (needs ~/.local/bin on PATH)
+pip install ufo-tdkit-report          # into the active virtualenv only
+
+# From source, for development (editable, with dev extras):
+git clone https://github.com/typedev/ufo-tdkit-report.git
+cd ufo-tdkit-report
+uv sync --extra dev                   # then run via `uv run tdreport ...`
+```
+</details>
+
+Verify it landed on your `PATH`:
+
+```bash
+tdreport --help
 ```
 
 ## Usage
