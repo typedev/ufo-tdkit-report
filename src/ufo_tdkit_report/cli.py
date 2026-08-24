@@ -39,6 +39,33 @@ def _read_secret(prompt: str) -> str:
     return sys.stdin.readline().strip()
 
 
+def _choose_model(models: list[tuple[str, str]], current: str) -> str | None:
+    """Numbered menu of available models. Returns the chosen id, or None to abort.
+
+    Enter keeps the current model; a raw id can also be typed, so a model missing from
+    the list (or newer than it) is never locked out.
+    """
+    print("Available models:\n")
+    for number, (model_id, label) in enumerate(models, 1):
+        marker = "  <- current" if model_id == current else ""
+        print(f"  {number:>2}. {label:<20} {model_id}{marker}")
+    print()
+    try:
+        answer = input(f"Number, or a model id [{current}]: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return None
+    if not answer:
+        return current
+    if answer.isdigit():
+        index = int(answer)
+        if not 1 <= index <= len(models):
+            print(f"error: no option {index} (pick 1-{len(models)})")
+            return None
+        return models[index - 1][0]
+    return answer
+
+
 def _is_range(arg: str | None) -> bool:
     """True if ``arg`` is a commit range (``a..b``) → committed-history modes.
 
@@ -63,12 +90,19 @@ Examples:
   tdreport ~/fonts/MyFont        # commit assistant for an explicit repo path
   tdreport add myfont ~/fonts/MyFont   # register a name -> repo path
   tdreport set-key sk-ant-...     # store the Anthropic API key (owner-only) for --ai-note
+  tdreport set-model              # pick the --ai-note model from a menu of available ones
   tdreport v2.005..v2.006        # committed-history report for a range (cwd repo)
   tdreport --notes v2.005..HEAD  # aggregate every commit in the range into release notes
         """,
     )
-    parser.add_argument("target", nargs="?", help="repo selector (name/path), a commit range, 'add', or 'set-key'")
-    parser.add_argument("rest", nargs="*", help="'commit'; for 'add': <name> <path>; for 'set-key': <api-key>")
+    parser.add_argument(
+        "target", nargs="?",
+        help="repo selector (name/path), a commit range, 'add', 'set-key', or 'set-model'",
+    )
+    parser.add_argument(
+        "rest", nargs="*",
+        help="'commit'; for 'add': <name> <path>; for 'set-key': <api-key>; for 'set-model': <model-id>",
+    )
     parser.add_argument("--repo", default=".", help="git repo for committed-history modes (default: cwd)")
     parser.add_argument("--notes", action="store_true", help="aggregate every commit in the range into notes")
     parser.add_argument("--profile", help="path to a build-profile YAML to record in the report header")
@@ -78,7 +112,12 @@ Examples:
         "--ai-note", action="store_true",
         help="add a grounded AI narrative (opt-in; needs a key via `tdreport set-key`; never publishes)",
     )
-    parser.add_argument("--ai-model", default="claude-sonnet-4-6", help="model for --ai-note")
+    from ufo_tdkit_report.narrator import DEFAULT_MODEL
+
+    parser.add_argument(
+        "--ai-model", default=None,
+        help=f"model for --ai-note, overriding `tdreport set-model` (built-in default: {DEFAULT_MODEL})",
+    )
     parser.add_argument("-y", "--yes", action="store_true", help="auto-confirm the 'commit this?' prompt")
     return parser
 
@@ -115,6 +154,36 @@ def main(argv: list[str] | None = None) -> int:
         print(f"stored Anthropic API key in {path} (permissions 0600)")
         return 0
 
+    # The narration model, resolved once: --ai-model > `tdreport set-model` > built-in default.
+    from ufo_tdkit_report.narrator import resolve_model
+
+    # --- model preference: `tdreport set-model [<model-id>]` (menu when omitted) ---
+    if args.target == "set-model":
+        from ufo_tdkit_report.narrator import list_models, resolve_api_key, store_model
+
+        current = resolve_model()
+        if args.rest:
+            chosen = args.rest[0]
+        elif not sys.stdin.isatty():
+            print(f"current AI model: {current}")
+            print("error: usage: tdreport set-model <model-id> (no TTY to show the menu)")
+            return 1
+        else:
+            # Live list when a key is available, the built-in list otherwise.
+            chosen = _choose_model(list_models(api_key=resolve_api_key()), current)
+            if not chosen:
+                print(f"unchanged: {current}")
+                return 0
+        try:
+            path = store_model(chosen)
+        except ValueError as exc:
+            print(f"error: {exc}")
+            return 1
+        print(f"AI model set to {chosen} (stored in {path})")
+        return 0
+
+    model = resolve_model(explicit=args.ai_model)
+
     # --- committed-history modes: a range or --notes (repo = --repo / cwd) ---
     if args.notes or _is_range(args.target):
         if args.notes:
@@ -141,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
             from ufo_tdkit_report.narrator import resolve_api_key
 
             try:
-                print(narrate(report, model=args.ai_model, api_key=resolve_api_key()))
+                print(narrate(report, model=model, api_key=resolve_api_key()))
             except NarratorError as exc:
                 print(f"error: AI narration failed: {exc}")
                 return 1
@@ -161,7 +230,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if action == "commit":
         try:
-            rc, msg = do_commit(selector, ai=args.ai_note, model=args.ai_model)
+            rc, msg = do_commit(selector, ai=args.ai_note, model=model)
         except (NarratorError, RuntimeError) as exc:
             print(f"error: {exc}")
             return 1
@@ -169,7 +238,7 @@ def main(argv: list[str] | None = None) -> int:
         return rc
 
     try:
-        repo, text, has_changes = inspect(selector, ai=args.ai_note, model=args.ai_model)
+        repo, text, has_changes = inspect(selector, ai=args.ai_note, model=model)
     except (NarratorError, RuntimeError) as exc:
         print(f"error: {exc}")
         return 1
@@ -179,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"--- drafted in {os.path.join(repo, REPORT_RELPATH)} (edit if needed) ---")
     if _confirm("Commit this?", assume_yes=args.yes):
         try:
-            rc, msg = do_commit(selector, ai=args.ai_note, model=args.ai_model)
+            rc, msg = do_commit(selector, ai=args.ai_note, model=model)
         except (NarratorError, RuntimeError) as exc:
             print(f"error: {exc}")
             return 1

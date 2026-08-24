@@ -17,21 +17,32 @@ Standalone and build-tool-agnostic: it needs **git**, not any particular font co
 - **Commit assistant** — draft a commit message from the working tree.
 - **Range / release notes** — aggregate a tag/commit range into notes.
 - **Grounded AI narration** (opt-in) — `--ai-note` turns the deterministic facts into
-  prose, attaching the facts verbatim for verification. Needs an Anthropic API key
-  (see [AI narration](#ai-narration-opt-in)).
+  prose, attaching the facts verbatim for verification. Needs an Anthropic API key, and
+  the model is picked from a menu (`tdreport set-model`) — see
+  [AI narration](#ai-narration-opt-in).
 
 ## Install
 
 This is a command-line tool, so install it as a **global CLI** with
 [`uv`](https://docs.astral.sh/uv): that puts the `tdreport` command on your `PATH`
 (no `sudo`, no virtualenv to activate) while keeping its dependencies isolated in their
-own environment. It is not on PyPI yet, so install straight from the source — a git URL
-or a local checkout:
+own environment. It is not on PyPI yet, so install straight from the source. Pick **one**
+of the two options below — don't run both.
+
+**Option A — from the git URL** (works from any directory, nothing to clone):
 
 ```bash
 uv tool install git+https://github.com/typedev/ufo-tdkit-report.git
-# or, from a local checkout of this repo:
-uv tool install .
+```
+
+**Option B — from a local checkout** (use this if you want to install your own edits).
+The `.` means "the project in the current directory", so you must be *inside* the
+checkout when you run it:
+
+```bash
+git clone https://github.com/typedev/ufo-tdkit-report.git
+cd ufo-tdkit-report
+uv tool install .        # add --force to replace an existing install
 ```
 
 Then `tdreport` works from any directory. Update or remove it later with:
@@ -65,6 +76,10 @@ tdreport                       # draft a message for the current repo
 tdreport --ai-note             # narrated by a grounded AI
 tdreport commit                # commit the working tree with the drafted message
 
+# One-time setup for --ai-note
+tdreport set-key sk-ant-...    # store the Anthropic API key, owner-only
+tdreport set-model             # pick the narration model from a menu
+
 # Named repos (explicit registration — nothing is auto-registered)
 tdreport add myfont ~/fonts/MyFont
 tdreport myfont                # commit assistant for a registered repo
@@ -78,7 +93,8 @@ tdreport --notes v2.005..HEAD  # aggregate every commit in the range into releas
 ## AI narration (opt-in)
 
 AI narration is **off** unless you pass `--ai-note`. When you do, the tool needs an
-Anthropic API key, which it reads from a **single place**: its own config file,
+Anthropic API key, which it reads from a **single place**: its own config file (which
+also holds the chosen model — see [Choosing the model](#choosing-the-model)),
 
 | OS      | path                                                     |
 | ------- | -------------------------------------------------------- |
@@ -102,8 +118,28 @@ Then narrate:
 ```bash
 tdreport --ai-note                          # commit message, AI-drafted
 tdreport --notes v2.005..HEAD --ai-note     # release notes, AI-drafted
-tdreport --ai-note --ai-model claude-opus-4-8   # pick the model (default: claude-sonnet-4-6)
 ```
+
+### Choosing the model
+
+`tdreport set-model` shows a numbered menu of the models available to your key and
+stores the pick beside it in `<config>/.env`:
+
+```bash
+tdreport set-model                  # menu; Enter keeps the current model
+tdreport set-model claude-sonnet-5  # or set one directly (no menu, works in CI)
+```
+
+The menu is fetched live from the Anthropic Models API, so it never goes stale; with no
+key or no network it falls back to a built-in list, and you can always type a model id
+that is not listed. Which model a run uses is resolved in this order:
+
+1. `--ai-model <id>` — a one-off override for that run
+2. the `tdreport set-model` preference
+3. the built-in default, **`claude-opus-5`**
+
+The model that actually ran is named in the attribution line of every AI-drafted report
+and commit message, so it is always visible after the fact.
 
 The narrator is strictly grounded — it may only restate the deterministic facts, which
 are always attached verbatim in a `<details>` block — and it never publishes anything.

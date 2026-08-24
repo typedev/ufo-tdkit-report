@@ -28,11 +28,16 @@ from ufo_tdkit_report.model import (
     SourceReport,
 )
 from ufo_tdkit_report.narrator import (
+    DEFAULT_MODEL,
+    KNOWN_MODELS,
     NarratorError,
+    list_models,
     narrate,
     narrate_commit,
     resolve_api_key,
+    resolve_model,
     store_api_key,
+    store_model,
 )
 from ufo_tdkit_report.service import commit_facts, extract_facts, extract_working_facts
 
@@ -46,6 +51,11 @@ __all__ = [
     "narrate_commit",
     "resolve_api_key",
     "store_api_key",
+    "resolve_model",
+    "store_model",
+    "list_models",
+    "DEFAULT_MODEL",
+    "KNOWN_MODELS",
     "NarratorError",
     "SourceReport",
     "RangeReport",

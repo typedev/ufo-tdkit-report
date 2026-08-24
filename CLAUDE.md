@@ -93,12 +93,21 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   never invent a glyph/codepoint/option name or meaning. The deterministic facts are always
   attached verbatim in a `<details>` block for verification. The Anthropic call is a plain
   `urllib` POST (no `anthropic` SDK, no third-party deps) with an injectable `transport` so
-  prompt assembly and parsing are testable offline. Default model is `claude-sonnet-4-6`
-  (override with `--ai-model`). The API key has exactly **two** sources: an explicit
-  argument (`resolve_api_key(explicit=)` / the `api_key=` param), and `<config>/.env`
-  (`config_env_path()`, written 0600 by `store_api_key` / `tdreport set-key`). It is
-  *not* read from the process environment, a repo `.env`, or the cwd — don't reintroduce
-  those fallbacks. Resolution and key storage are pure-ish and unit-tested without network.
+  prompt assembly and parsing are testable offline. The API key has exactly **two**
+  sources: an explicit argument (`resolve_api_key(explicit=)` / the `api_key=` param), and
+  `<config>/.env` (`config_env_path()`, written 0600 by `store_api_key` / `tdreport
+  set-key`). It is *not* read from the process environment, a repo `.env`, or the cwd —
+  don't reintroduce those fallbacks. Resolution and key storage are pure-ish and
+  unit-tested without network.
+- **One model default, one config file.** `narrator.DEFAULT_MODEL` (`claude-opus-5`) is the
+  single source of truth — never re-spell a model id as a literal in `cli.py`/`commit.py`
+  (it was duplicated in four places once). `resolve_model(explicit=)` layers
+  `--ai-model` > the `tdreport set-model` preference > `DEFAULT_MODEL`, with the same
+  no-process-environment discipline as the key. The preference (`TDREPORT_AI_MODEL`) lives
+  in the *same* `<config>/.env` as the key, so writes go through `_write_dotenv_var`, which
+  preserves every other line — never rewrite that file wholesale. `list_models()` feeds the
+  `set-model` menu from the Models API (injected `transport`) and degrades to
+  `KNOWN_MODELS` with no key/network, so picking a model works offline.
 
 ## Testing conventions
 

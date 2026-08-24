@@ -75,20 +75,23 @@ def _ensure_gitignored(repo: str) -> None:
         pass
 
 
-def inspect(target: str | None = None, *, ai: bool = False, model: str = "claude-sonnet-4-6") -> tuple[str, str, bool]:
+def inspect(target: str | None = None, *, ai: bool = False, model: str | None = None) -> tuple[str, str, bool]:
     """Inspect uncommitted changes; write the drafted message to the report file.
 
     Returns ``(repo, message_text, has_changes)``. Does not print — the CLI does.
+    ``model=None`` resolves through :func:`narrator.resolve_model`; it is only consulted
+    when ``ai`` is set.
     """
     repo = resolve_repo(target)
     report = extract_working_facts(repo)
     has_changes = bool(report.folded_facts)
 
     if ai:
-        from ufo_tdkit_report.narrator import narrate_commit
+        from ufo_tdkit_report.narrator import narrate_commit, resolve_model
         from ufo_tdkit_report.narrator import resolve_api_key as _resolve_key
 
-        text = narrate_commit(report, model=model, api_key=_resolve_key())
+        # model=None -> the `tdreport set-model` preference, else the built-in default.
+        text = narrate_commit(report, model=resolve_model(explicit=model), api_key=_resolve_key())
     else:
         text = render_commit_message(report)
 
@@ -99,7 +102,7 @@ def inspect(target: str | None = None, *, ai: bool = False, model: str = "claude
     return repo, text, has_changes
 
 
-def commit(target: str | None = None, *, ai: bool = False, model: str = "claude-sonnet-4-6") -> tuple[int, str]:
+def commit(target: str | None = None, *, ai: bool = False, model: str | None = None) -> tuple[int, str]:
     """Commit the working tree using the drafted message (generating it if absent).
 
     Returns ``(exit_code, message)``.

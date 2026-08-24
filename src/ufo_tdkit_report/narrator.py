@@ -25,6 +25,7 @@ from pathlib import Path
 from ufo_tdkit_report.model import RangeReport, SourceReport
 
 _API_KEY_VAR = "ANTHROPIC_API_KEY"
+_MODEL_VAR = "TDREPORT_AI_MODEL"
 
 
 def read_dotenv_key(paths: list[Path], var: str = _API_KEY_VAR) -> str | None:
@@ -93,6 +94,40 @@ def _secure(path: Path) -> None:
         pass
 
 
+def _write_dotenv_var(path: Path, var: str, value: str) -> Path:
+    """Set ``var`` in a ``.env`` file, preserving every other line. Owner-only.
+
+    The config file holds both the secret key and the non-secret model preference, so a
+    write must never clobber the entries it is not touching (storing a model must not
+    drop the API key). Rewrites an existing definition in place, appends otherwise, and
+    collapses duplicate definitions of the same var.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines: list[str] = []
+    if path.is_file():
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            lines = []
+    out: list[str] = []
+    replaced = False
+    for raw in lines:
+        stripped = raw.strip()
+        candidate = stripped[len("export ") :].lstrip() if stripped.startswith("export ") else stripped
+        if candidate.partition("=")[0].strip() == var:
+            if replaced:
+                continue  # a duplicate definition of the same var: drop it
+            out.append(f"{var}={value}")
+            replaced = True
+        else:
+            out.append(raw)
+    if not replaced:
+        out.append(f"{var}={value}")
+    path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    _secure(path)
+    return path
+
+
 def store_api_key(key: str, *, var: str = _API_KEY_VAR) -> Path:
     """Write the API key to its single home (``<config>/.env``), owner-only.
 
@@ -103,11 +138,7 @@ def store_api_key(key: str, *, var: str = _API_KEY_VAR) -> Path:
     key = key.strip()
     if not key:
         raise ValueError("refusing to store an empty API key")
-    path = config_env_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"{var}={key}\n", encoding="utf-8")
-    _secure(path)
-    return path
+    return _write_dotenv_var(config_env_path(), var, key)
 
 
 def resolve_api_key(*, explicit: str | None = None) -> str | None:
@@ -127,11 +158,48 @@ def resolve_api_key(*, explicit: str | None = None) -> str | None:
         _secure(path)  # tighten perms on read too, in case the file was hand-created
     return key
 
+
+def store_model(model: str, *, var: str = _MODEL_VAR) -> Path:
+    """Persist the preferred narration model in ``<config>/.env``. Returns the path.
+
+    Sits beside the API key in the one config file (the key's other entries are
+    preserved). Raises ``ValueError`` on an empty id. Written by ``tdreport set-model``.
+    """
+    model = model.strip()
+    if not model:
+        raise ValueError("refusing to store an empty model id")
+    return _write_dotenv_var(config_env_path(), var, model)
+
+
+def resolve_model(*, explicit: str | None = None) -> str:
+    """Resolve the narration model: explicit argument -> ``<config>/.env`` -> ``DEFAULT_MODEL``.
+
+    The same two-source discipline as :func:`resolve_api_key`, plus a built-in default:
+    a per-run ``--ai-model`` wins, then the preference stored by ``tdreport set-model``,
+    then :data:`DEFAULT_MODEL`. The process environment is never consulted.
+    """
+    if explicit:
+        return explicit
+    return read_dotenv_key([config_env_path()], _MODEL_VAR) or DEFAULT_MODEL
+
+
 API_URL = "https://api.anthropic.com/v1/messages"
+MODELS_URL = "https://api.anthropic.com/v1/models"
 API_VERSION = "2023-06-01"
-DEFAULT_MODEL = "claude-sonnet-4-6"
+DEFAULT_MODEL = "claude-opus-5"
 DEFAULT_MAX_TOKENS = 2048
 DEFAULT_TIMEOUT = 60
+
+# The menu `tdreport set-model` falls back to when the live list cannot be fetched (no
+# key, no network). A convenience only: any id the API accepts can still be set by hand,
+# and the live list is authoritative when it is reachable.
+KNOWN_MODELS: tuple[tuple[str, str], ...] = (
+    ("claude-opus-5", "Claude Opus 5"),
+    ("claude-opus-4-8", "Claude Opus 4.8"),
+    ("claude-sonnet-5", "Claude Sonnet 5"),
+    ("claude-sonnet-4-6", "Claude Sonnet 4.6"),
+    ("claude-haiku-4-5", "Claude Haiku 4.5"),
+)
 
 _SYSTEM_PROMPT = """\
 You write release notes for a font from a list of DETERMINISTIC, machine-extracted
@@ -234,6 +302,62 @@ def _http_post(url: str, headers: dict, body: bytes, timeout: int) -> dict:
             raise NarratorError(f"HTTP {exc.code}: {detail[:200]}") from exc
     except urllib.error.URLError as exc:
         raise NarratorError(f"network error: {exc.reason}") from exc
+
+
+def _http_get(url: str, headers: dict, timeout: int) -> dict:
+    request = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")
+        try:
+            return json.loads(detail)  # API errors come back as JSON with type=error
+        except json.JSONDecodeError:
+            raise NarratorError(f"HTTP {exc.code}: {detail[:200]}") from exc
+    except urllib.error.URLError as exc:
+        raise NarratorError(f"network error: {exc.reason}") from exc
+
+
+def parse_models_response(data: dict) -> list[tuple[str, str]]:
+    """Extract ``[(id, display_name), ...]`` from a Models API response. Pure.
+
+    Returns ``[]`` on an error payload or an unexpected shape — the caller falls back to
+    :data:`KNOWN_MODELS` rather than failing, since this only feeds a picker.
+    """
+    if data.get("type") == "error":
+        return []
+    models: list[tuple[str, str]] = []
+    for entry in data.get("data") or []:
+        if not isinstance(entry, dict):
+            continue
+        model_id = (entry.get("id") or "").strip()
+        if model_id:
+            models.append((model_id, (entry.get("display_name") or model_id).strip()))
+    return models
+
+
+def list_models(
+    *,
+    api_key: str | None = None,
+    transport=_http_get,
+    timeout: int = DEFAULT_TIMEOUT,
+    limit: int = 100,
+) -> list[tuple[str, str]]:
+    """Models this key can use, newest first: ``[(id, display_name), ...]``.
+
+    Asks the Anthropic Models API so the picker never goes stale, and degrades to
+    :data:`KNOWN_MODELS` when there is no key, no network, or an unusable response —
+    picking a model must work offline. ``transport`` is injected for offline tests.
+    """
+    if not api_key:
+        return list(KNOWN_MODELS)
+    headers = {"x-api-key": api_key, "anthropic-version": API_VERSION}
+    try:
+        data = transport(f"{MODELS_URL}?limit={limit}", headers, timeout)
+    except NarratorError:
+        return list(KNOWN_MODELS)
+    return parse_models_response(data) or list(KNOWN_MODELS)
 
 
 def _call(system: str, user: str, *, model, api_key, transport, max_tokens, timeout) -> str:

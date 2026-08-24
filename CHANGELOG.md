@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- `tdreport set-model` picks the `--ai-note` model from a **numbered menu of available
+  models**, and stores it beside the key in `<config>/.env` (`TDREPORT_AI_MODEL`). The menu
+  is fetched live from the Anthropic Models API so it cannot go stale, falls back to a
+  built-in list with no key or no network, and accepts a typed model id that is not listed.
+  `tdreport set-model <id>` sets one directly (no TTY needed, for CI). Exposed in the
+  library as `list_models()` / `store_model()` / `resolve_model()`.
 - `tdreport set-key <KEY>` stores the Anthropic API key in the single supported
   on-disk home (`<config>/.env`) with owner-only permissions (`0600`); with no argument
   it prompts without echoing (or reads stdin), so the key never lands in shell history.
@@ -14,6 +20,15 @@ All notable changes to this project are documented here. The format follows
   `schema=` to inject build-profile consequence knowledge (the seam a build tool uses).
 
 ### Changed
+- **Default AI model is now `claude-opus-5`** (was `claude-sonnet-4-6`), and the id is no
+  longer duplicated: `narrator.DEFAULT_MODEL` is the single source of truth, where the
+  literal had been copied into `cli.py` and twice into `commit.py` — so changing the
+  constant left three code paths on the old model. Model selection now resolves as
+  `--ai-model` > the `tdreport set-model` preference > `DEFAULT_MODEL`; as with the API
+  key, the process environment is never consulted.
+- `<config>/.env` is written by merge (`_write_dotenv_var`) instead of wholesale, so
+  storing the model no longer clobbers the key (or vice versa) and hand-written lines in
+  that file survive. It stays owner-only (0600).
 - **AI API key resolution narrowed to two sources** (was six): an explicit argument and
   `<config>/.env` only. The process environment (`ANTHROPIC_API_KEY`), a repo `.env`, a
   cwd `.env`, and the plain `<config>/anthropic_key` file are no longer consulted — so the
