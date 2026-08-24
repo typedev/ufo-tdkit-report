@@ -1,11 +1,19 @@
 # Changelog
 
 All notable changes to this project are documented here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+[Keep a Changelog](https://keepachangelog.com/en/1.0.0/) and this project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html). The version in
+`pyproject.toml` is the single source of truth; each release is tagged `v<version>`.
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.1.1] - 2026-08-24
+
 ### Added
+- `tdreport --version`. The version is stamped into report footers and commit trailers,
+  so it needs to be queryable without reading a report.
 - `tdreport set-model` picks the `--ai-note` model from a **numbered menu of available
   models**, and stores it beside the key in `<config>/.env` (`TDREPORT_AI_MODEL`). The menu
   is fetched live from the Anthropic Models API so it cannot go stale, falls back to a
@@ -73,3 +81,7 @@ All notable changes to this project are documented here. The format follows
   profile-option *consequence* schema is injected by the consumer (`fold_facts(schema=)`)
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
+
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/typedev/ufo-tdkit-report/releases/tag/v0.1.0

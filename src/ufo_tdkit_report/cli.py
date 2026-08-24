@@ -119,6 +119,11 @@ Examples:
         help=f"model for --ai-note, overriding `tdreport set-model` (built-in default: {DEFAULT_MODEL})",
     )
     parser.add_argument("-y", "--yes", action="store_true", help="auto-confirm the 'commit this?' prompt")
+
+    from ufo_tdkit_report import __version__
+
+    # The version is stamped into report footers and commit trailers; make it queryable.
+    parser.add_argument("--version", action="version", version=f"tdreport {__version__}")
     return parser
 
 

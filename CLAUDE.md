@@ -22,6 +22,7 @@ uv run pytest -k outline_redraw               # one test by name substring
 uv run ruff check .                           # lint (config in pyproject.toml)
 uv run ruff check --fix .                     # autofix lint
 uv run tdreport ...                           # run the CLI from source
+uv run tdreport --version                     # version (also in every report footer)
 ```
 
 There is no separate build/typecheck step. `ruff` enforces `E,W,F,I,N` at line-length 120,
@@ -108,6 +109,31 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   preserves every other line — never rewrite that file wholesale. `list_models()` feeds the
   `set-model` menu from the Models API (injected `transport`) and degrades to
   `KNOWN_MODELS` with no key/network, so picking a model works offline.
+
+## Versioning & releases
+
+`pyproject.toml` `version` is the **single source of truth**; `__init__.__version__` reads
+it back from installed package metadata (`0.0.0+unknown` in an uninstalled source tree),
+`render.py` stamps it into every report footer and commit trailer, and `tdreport --version`
+prints it. SemVer, tag `v<version>`. The version is deliberately *static*, not derived from
+git (setuptools-scm/hatch-vcs style): a dirty-tree or dev version string would leak into
+report output and break byte-stability.
+
+`tests/test_report_version.py` fails if `pyproject.toml` and the newest released CHANGELOG
+section disagree, so the two cannot drift.
+
+To cut a release:
+
+```bash
+# 1. move the accumulated `## [Unreleased]` entries into `## [X.Y.Z] - <today>` and
+#    leave `## [Unreleased]` in place with `_Nothing yet._`; add the compare links
+# 2. bump `version` in pyproject.toml
+uv lock                                   # uv.lock records the project version too
+uv run --extra dev pytest -q && uv run ruff check .
+git commit -am "chore(release): X.Y.Z"
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin main --follow-tags
+```
 
 ## Testing conventions
 

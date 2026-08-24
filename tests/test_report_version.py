@@ -1,0 +1,61 @@
+"""The release metadata must not drift apart.
+
+`pyproject.toml` is the single source of truth for the version; the newest released
+CHANGELOG section has to name that same version, and the git tag is `v<version>`. These
+are file-level checks on purpose — comparing against ``importlib.metadata`` instead would
+fail on a stale virtualenv rather than on a real mistake.
+"""
+
+import re
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parent.parent
+SEMVER = re.compile(r"^\d+\.\d+\.\d+")
+
+
+def _pyproject_version() -> str:
+    # Regex rather than tomllib: tomllib is 3.11+, and this package supports 3.10.
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    match = re.search(r'^version = "([^"]+)"', text, re.MULTILINE)
+    assert match, "no version in pyproject.toml"
+    return match.group(1)
+
+
+def _changelog_releases() -> list[tuple[str, str]]:
+    """Released ``(version, date)`` headings, newest first. `[Unreleased]` is skipped."""
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    return re.findall(r"^## \[(\d+\.\d+\.\d+)\] - (\d{4}-\d{2}-\d{2})$", text, re.MULTILINE)
+
+
+def test_version_is_semver():
+    assert SEMVER.match(_pyproject_version())
+
+
+def test_changelog_documents_the_current_version():
+    releases = _changelog_releases()
+    assert releases, "CHANGELOG has no released sections"
+    newest, _date = releases[0]
+    assert newest == _pyproject_version(), (
+        f"pyproject version {_pyproject_version()} is not the newest CHANGELOG "
+        f"section ({newest}) — bump both, or cut the release section"
+    )
+
+
+def test_changelog_has_an_unreleased_section():
+    # Where the next change goes; forgetting it is how entries land in a shipped section.
+    text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## [Unreleased]" in text
+
+
+def test_changelog_releases_are_ordered_newest_first():
+    releases = _changelog_releases()
+    versions = [tuple(int(p) for p in v.split(".")) for v, _ in releases]
+    assert versions == sorted(versions, reverse=True)
+    dates = [d for _, d in releases]
+    assert dates == sorted(dates, reverse=True)
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
