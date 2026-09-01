@@ -18,6 +18,7 @@ from ufo_tdkit_report.narrator import (
     config_env_path,
     list_models,
     narrate,
+    narrate_commit,
     parse_message_response,
     parse_models_response,
     read_dotenv_key,
@@ -77,7 +78,8 @@ def test_parse_message_response_empty_raises():
         parse_message_response({"stop_reason": "end_turn", "content": []})
 
 
-def test_narrate_wires_transport_and_attaches_facts():
+def test_narrate_wires_transport_and_attaches_facts(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))  # no stored preference
     captured = {}
 
     def fake_transport(url, headers, body, timeout):
@@ -103,6 +105,43 @@ def test_narrate_wires_transport_and_attaches_facts():
     assert captured["headers"]["x-api-key"] == "test-key"
     assert captured["headers"]["anthropic-version"] == "2023-06-01"
     assert DEFAULT_MODEL.encode() in captured["body"]  # default model, via the one constant
+
+
+def test_narrate_honors_the_stored_model_preference(tmp_path, monkeypatch):
+    # A library caller that passes no model must still get the owner's `set-model`
+    # preference: the default is resolved inside narrate(), not frozen in the signature.
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    store_model("claude-haiku-4-5")
+    captured = {}
+
+    def fake_transport(url, headers, body, timeout):
+        captured["body"] = body
+        return {"content": [{"type": "text", "text": "ok"}]}
+
+    out = narrate(_report(), api_key="test-key", transport=fake_transport)
+    assert b'"model": "claude-haiku-4-5"' in captured["body"]
+    assert "claude-haiku-4-5" in out  # and the attribution names what actually ran
+
+    # An explicit argument still wins over the stored preference.
+    narrate(_report(), model="claude-opus-4-8", api_key="test-key", transport=fake_transport)
+    assert b'"model": "claude-opus-4-8"' in captured["body"]
+
+
+def test_narrate_commit_honors_the_stored_model_preference(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    store_model("claude-haiku-4-5")
+    captured = {}
+
+    def fake_transport(url, headers, body, timeout):
+        captured["body"] = body
+        return {"content": [{"type": "text", "text": "fix: redraw Ring"}]}
+
+    out = narrate_commit(_report(), api_key="test-key", transport=fake_transport)
+    assert b'"model": "claude-haiku-4-5"' in captured["body"]
+    assert "claude-haiku-4-5" in out
+
+    narrate_commit(_report(), model="claude-opus-4-8", api_key="test-key", transport=fake_transport)
+    assert b'"model": "claude-opus-4-8"' in captured["body"]
 
 
 def test_narrate_missing_key_raises():

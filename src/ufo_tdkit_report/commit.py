@@ -87,11 +87,11 @@ def inspect(target: str | None = None, *, ai: bool = False, model: str | None = 
     has_changes = bool(report.folded_facts)
 
     if ai:
-        from ufo_tdkit_report.narrator import narrate_commit, resolve_model
+        from ufo_tdkit_report.narrator import narrate_commit
         from ufo_tdkit_report.narrator import resolve_api_key as _resolve_key
 
-        # model=None -> the `tdreport set-model` preference, else the built-in default.
-        text = narrate_commit(report, model=resolve_model(explicit=model), api_key=_resolve_key())
+        # model=None -> narrate_commit resolves the `tdreport set-model` preference itself.
+        text = narrate_commit(report, model=model, api_key=_resolve_key())
     else:
         text = render_commit_message(report)
 

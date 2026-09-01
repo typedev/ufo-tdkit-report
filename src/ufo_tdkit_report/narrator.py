@@ -382,13 +382,19 @@ def _call(system: str, user: str, *, model, api_key, transport, max_tokens, time
 def narrate_commit(
     report: SourceReport,
     *,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
     api_key: str | None = None,
     transport=_http_post,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     timeout: int = DEFAULT_TIMEOUT,
 ) -> str:
-    """Narrate the facts as a grounded git commit message (subject + body, no <details>)."""
+    """Narrate the facts as a grounded git commit message (subject + body, no <details>).
+
+    ``model=None`` resolves through :func:`resolve_model`, so a library caller that does
+    not pick a model still gets the owner's ``tdreport set-model`` preference rather than
+    the built-in default.
+    """
+    model = resolve_model(explicit=model)
     facts = _facts_block(report)
     user = (
         "Write a git commit message from the following deterministic source-change facts. "
@@ -405,7 +411,7 @@ def narrate_commit(
 def narrate(
     report: SourceReport | RangeReport,
     *,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
     api_key: str | None = None,
     transport=_http_post,
     max_tokens: int = DEFAULT_MAX_TOKENS,
@@ -415,10 +421,15 @@ def narrate(
 
     The deterministic facts are always appended in a ``<details>`` block so the
     ground truth travels with the prose and can be verified before publishing.
+
+    ``model=None`` resolves through :func:`resolve_model`, so a library caller that does
+    not pick a model still gets the owner's ``tdreport set-model`` preference rather than
+    the built-in default.
     """
     if not api_key:
         raise _missing_key_error()
     key = api_key
+    model = resolve_model(explicit=model)
 
     system, user = build_messages(report)
     payload = {

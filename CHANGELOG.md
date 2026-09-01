@@ -7,7 +7,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- `narrate()` and `narrate_commit()` now resolve the narration model themselves when the
+  caller passes none (`model=None` → `resolve_model()`), instead of freezing
+  `DEFAULT_MODEL` into the signature. A library consumer that did not pass a model
+  silently got the built-in default and never saw the owner's `tdreport set-model`
+  preference — the resolution order `explicit > TDREPORT_AI_MODEL in <config>/.env >
+  DEFAULT_MODEL` lived only in the CLI. It now holds for every caller. Backwards
+  compatible: passing a model explicitly is unchanged.
 
 ## [0.1.1] - 2026-08-24
 

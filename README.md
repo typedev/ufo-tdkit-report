@@ -134,9 +134,13 @@ The menu is fetched live from the Anthropic Models API, so it never goes stale; 
 key or no network it falls back to a built-in list, and you can always type a model id
 that is not listed. Which model a run uses is resolved in this order:
 
-1. `--ai-model <id>` — a one-off override for that run
+1. `--ai-model <id>` — a one-off override for that run (in the library, `narrate(model=...)`)
 2. the `tdreport set-model` preference
 3. the built-in default, **`claude-opus-5`**
+
+The same order applies to library callers: `narrate()` / `narrate_commit()` resolve the
+model themselves when none is passed, so a tool embedding this library honours the
+`set-model` preference without re-implementing the lookup.
 
 The model that actually ran is named in the attribution line of every AI-drafted report
 and commit message, so it is always visible after the fact.
@@ -151,8 +155,9 @@ from ufo_tdkit_report import extract_facts, narrate, resolve_api_key, store_api_
 
 store_api_key("sk-ant-...")                 # write it to <config>/.env, 0600 (one-time)
 report = extract_facts(".", "HEAD~1..HEAD")
-print(narrate(report, model="claude-opus-4-8", api_key=resolve_api_key()))
-print(narrate(report, api_key="sk-ant-..."))   # …or supply it explicitly per call
+print(narrate(report, api_key=resolve_api_key()))       # model: the set-model preference
+print(narrate(report, model="claude-opus-4-8",         # …or pin both per call
+              api_key="sk-ant-..."))
 ```
 
 ## Library

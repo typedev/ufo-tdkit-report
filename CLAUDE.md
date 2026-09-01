@@ -104,8 +104,12 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   single source of truth — never re-spell a model id as a literal in `cli.py`/`commit.py`
   (it was duplicated in four places once). `resolve_model(explicit=)` layers
   `--ai-model` > the `tdreport set-model` preference > `DEFAULT_MODEL`, with the same
-  no-process-environment discipline as the key. The preference (`TDREPORT_AI_MODEL`) lives
-  in the *same* `<config>/.env` as the key, so writes go through `_write_dotenv_var`, which
+  no-process-environment discipline as the key. That layering must hold for *library*
+  callers too, not just the CLI: `narrate`/`narrate_commit` take `model: str | None = None`
+  and call `resolve_model` themselves — never default a public signature to
+  `DEFAULT_MODEL`, or an embedding tool silently bypasses the owner's preference.
+  The preference (`TDREPORT_AI_MODEL`) lives in the *same* `<config>/.env` as the key, so
+  writes go through `_write_dotenv_var`, which
   preserves every other line — never rewrite that file wholesale. `list_models()` feeds the
   `set-model` menu from the Models API (injected `transport`) and degrades to
   `KNOWN_MODELS` with no key/network, so picking a model works offline.
