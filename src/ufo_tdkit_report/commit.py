@@ -75,12 +75,22 @@ def _ensure_gitignored(repo: str) -> None:
         pass
 
 
-def inspect(target: str | None = None, *, ai: bool = False, model: str | None = None) -> tuple[str, str, bool]:
+def inspect(
+    target: str | None = None,
+    *,
+    ai: bool = False,
+    model: str | None = None,
+    provider: str | None = None,
+    language: str | None = None,
+    account: str | None = None,
+    max_tokens: int | None = None,
+) -> tuple[str, str, bool]:
     """Inspect uncommitted changes; write the drafted message to the report file.
 
     Returns ``(repo, message_text, has_changes)``. Does not print — the CLI does.
-    ``model=None`` resolves through :func:`narrator.resolve_model`; it is only consulted
-    when ``ai`` is set.
+    Unset AI arguments resolve through :func:`settings.resolve_ai_settings`, and the
+    repo path is handed down so this repository's own account/model/language binding
+    applies; they are only consulted when ``ai`` is set.
     """
     repo = resolve_repo(target)
     report = extract_working_facts(repo)
@@ -88,10 +98,13 @@ def inspect(target: str | None = None, *, ai: bool = False, model: str | None = 
 
     if ai:
         from ufo_tdkit_report.narrator import narrate_commit
-        from ufo_tdkit_report.narrator import resolve_api_key as _resolve_key
 
-        # model=None -> narrate_commit resolves the `tdreport set-model` preference itself.
-        text = narrate_commit(report, model=model, api_key=_resolve_key())
+        # Everything unset resolves inside narrate_commit, against THIS repo's binding.
+        extra = {"max_tokens": max_tokens} if max_tokens else {}
+        text = narrate_commit(
+            report, repo=repo, model=model, provider=provider, language=language,
+            account=account, **extra
+        )
     else:
         text = render_commit_message(report)
 
@@ -102,7 +115,16 @@ def inspect(target: str | None = None, *, ai: bool = False, model: str | None = 
     return repo, text, has_changes
 
 
-def commit(target: str | None = None, *, ai: bool = False, model: str | None = None) -> tuple[int, str]:
+def commit(
+    target: str | None = None,
+    *,
+    ai: bool = False,
+    model: str | None = None,
+    provider: str | None = None,
+    language: str | None = None,
+    account: str | None = None,
+    max_tokens: int | None = None,
+) -> tuple[int, str]:
     """Commit the working tree using the drafted message (generating it if absent).
 
     Returns ``(exit_code, message)``.
@@ -117,7 +139,8 @@ def commit(target: str | None = None, *, ai: bool = False, model: str | None = N
     _ensure_gitignored(repo)
     path = report_path(repo)
     if not path.is_file():
-        inspect(target, ai=ai, model=model)
+        inspect(target, ai=ai, model=model, provider=provider, language=language,
+                account=account, max_tokens=max_tokens)
 
     _git(repo, "add", "-A")
     commit_msg = path.read_text(encoding="utf-8")

@@ -1,6 +1,6 @@
 [project]
 name = "ufo-tdkit-report"
-version = "0.1.2"
+version = "0.2.0"
 description = "Deterministic git-centric source-change extractor & narrator for UFO/designspace font projects"
 readme = "README.md"
 requires-python = ">=3.10"

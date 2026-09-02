@@ -9,6 +9,117 @@ All notable changes to this project are documented here. The format follows
 
 _Nothing yet._
 
+## [0.2.0] - 2026-09-02
+
+### Added
+- **Multiple AI providers.** `--ai-note` is no longer Anthropic-only: Claude, OpenAI
+  (the models behind Codex), xAI Grok, DeepSeek, Qwen (DashScope), OpenRouter, and local
+  models via Ollama, LM Studio or any OpenAI-compatible server (vLLM, llama.cpp, a
+  gateway). New `providers.py` holds a table of endpoints and exactly **two** dialect
+  adapters — Anthropic Messages and OpenAI `/chat/completions` — because every provider
+  but Anthropic speaks the latter. Adding one is a table row, not an integration. Still
+  no vendor SDK and no third-party runtime dependency: a plain `urllib` POST with an
+  injected transport. Pick one with `tdreport set-provider` or `--ai-provider`.
+- **AI accounts.** An account bundles provider + model + language + one key under a short
+  name; repositories reference it *by name* (`tdreport bind <account> [<repo>]`), so many
+  corporate repos share a key that is stored exactly once. `tdreport accounts`,
+  `tdreport account add|rm|use <name>`, and `--ai-account` for a single run. Removing an
+  account also removes its stored key. Keys live only in `<config>/.env` (`0600`), one
+  variable per account; the new `<config>/settings.json` and the registry hold no
+  secrets, and nothing tdreport-related is ever written inside the font repository.
+- **Narration language.** `tdreport set-lang <language>` / `--ai-lang` makes the AI write
+  its prose in another language. Only the prose: the deterministic report, the attached
+  facts, headings and footer stay English, so byte-stable output never depends on a local
+  preference. The model is instructed to keep every identifier — glyph names, codepoints,
+  feature tags, paths, option keys — verbatim rather than translating it.
+- **Per-repo overrides.** A registry entry can carry `account`, `provider`, `model` and
+  `language` beside its path, matched by repo *path* so the plain `tdreport` in a cwd
+  picks its own settings up.
+- `tdreport accounts` shows every account's provider, model, language and key status —
+  keys always masked, never printed.
+- **`tdreport settings`** — one interactive screen for provider, model, key, language,
+  base URL, accounts and registered repos (with binding, unbinding and pruning). It is a
+  front-end only: every edit goes through the same functions the `set-*` commands use, so
+  the two can be mixed. Keys are shown masked, never printed. Without a TTY it prints the
+  listing and exits rather than blocking on input a pipe can never supply;
+  `tdreport settings --json` emits the same state as JSON.
+- **`tdreport settings <repo>`** — the settings screen scoped to one repository. Two
+  settings live on the account (provider and key, which belong together) and two can live
+  on the repo (model, language); from a repo that split is invisible, so this screen shows
+  every value **with its source** ("from this repo" / "from account 'work'" / "from
+  built-in default") and offers the right lever for each: an account picker that lists
+  what each account brings (provider + key status), and per-repo overrides that an empty
+  answer clears. It warns when a repo has no key on its account, and when switching
+  account leaves a repo-pinned model belonging to a different provider. Non-interactively
+  it prints the same resolution, `--json` included; a path argument registers the repo
+  like every other path target.
+- **`tdreport accounts` is a screen, not a listing.** It shows what each account brings
+  (provider, model, key status, which is the default) and offers `a` to add one, `d` to
+  change the default, `r` to remove one, or a number to open that account's settings.
+  Adding walks through the parts one labelled question at a time — name, provider, key,
+  model, language — because `account add work openai` is four bare words in a row with
+  nothing to say which one you invent and which one is a provider. `tdreport account add`
+  on a TTY runs the same flow. Off a TTY both keep the old non-interactive behaviour, so
+  scripts and CI are unaffected.
+- Every model picker now says **which list it is showing**: the models the key can reach,
+  or the built-in fallback with the reason (no key yet, or the endpoint was unreachable).
+  A fallback list is indistinguishable from a real one, so a two-entry list read as "this
+  provider only has two models" when it meant "nobody could ask".
+- The API-key prompt states that **input is hidden** before you type, and confirms the
+  stored key masked afterwards. A pasted key shows nothing at all, which reads as the
+  terminal ignoring the paste — you press Enter, no key is stored, and the model picker
+  quietly falls back to the offline list.
+- **Repos are remembered when addressed by path.** `tdreport ~/fonts/AcmeSans` registers
+  it under the git root's basename and says so, so `tdreport AcmeSans` works from then
+  on. Never silent, never destructive: a name already pointing at a different repo is
+  reported and not overwritten. The bare cwd mode registers nothing, and an unknown bare
+  name is still an error rather than a silent guess.
+- **`tdreport repo <name> [<field> <value>]`** — per-repo overrides without a second
+  account: `model`, `language`, `provider`, `account`, and `clear` to hand a field back.
+  This is what gives two repos different models while sharing one stored key. With no
+  field it prints what that repo resolves to and why (overrides, account, provider,
+  model, language, key status). The same is editable from the `settings` repos screen,
+  and `tdreport ls` now shows each repo's overrides.
+- `tdreport ls`, `tdreport rm <name>`, `tdreport prune` — list registered repos (dead
+  paths marked `MISSING`), forget one, or drop every entry whose repo is gone.
+- `tdreport set-url <base-url>` points an account at a custom OpenAI-compatible endpoint
+  (a local server on a non-default host, vLLM, llama.cpp, a gateway, the mainland-China
+  DashScope endpoint).
+- `registry.stale()` / `registry.prune()` report and drop entries whose repo is gone.
+
+### Fixed
+- **Reasoning models produced an empty narrative.** The completion cap covers a model's
+  private reasoning as well as its answer, and DeepSeek's reasoners spent the whole
+  2048-token default on thinking — `finish_reason: length`, `reasoning_tokens: 2048`,
+  no visible text — which surfaced as the unhelpful `empty narrative from model`. The
+  default cap is now **8192** (a cap is not a charge: nothing is paid for tokens that are
+  not generated), a truncated answer with no text is now reported with the token counts
+  and the way out, and `--ai-max-tokens` overrides the cap per run.
+
+### Changed
+- **The registry format is now an object per entry** (`{"name": {"path": ...}}`) so a
+  repository can carry its bindings beside its path. The old flat form
+  (`{"name": "/path"}`) is read transparently and rewritten on the next write — no user
+  action needed. Name lookup is now case-insensitive.
+- **One resolution chain for every AI setting**, in `settings.resolve_ai_settings`:
+  explicit argument > repo entry > account > default account > built-in default. It
+  applies to library callers, not just the CLI — generalising the 0.1.2 fix from the
+  model to the provider, language, base URL and key.
+- `narrate()` / `narrate_commit()` now resolve the API key too when none is passed,
+  instead of refusing; an explicitly passed key still wins. They also accept `repo=`,
+  `provider=`, `language=` and `account=`.
+- The attribution footer names the provider alongside the model
+  (`model: deepseek/deepseek-chat`): with several providers reachable, a model id alone
+  no longer identifies what produced the prose.
+- `tdreport set-key` and `set-model` now write to the selected account rather than to
+  global variables. A pre-accounts config (`ANTHROPIC_API_KEY` and `TDREPORT_AI_MODEL` in
+  `<config>/.env`) keeps working unchanged as the `default` account.
+- Local providers get a longer default timeout (300 s): a local server loads the model on
+  the first request.
+- Config-directory and `.env` primitives moved to a new `config.py` so `registry` and
+  `settings` can share them without an import cycle. They remain importable from
+  `narrator` for compatibility.
+
 ## [0.1.2] - 2026-09-01
 
 ### Fixed
@@ -37,6 +148,15 @@ _Nothing yet._
   Exposed in the library as `store_api_key()`.
 - `extract_facts` / `extract_working_facts` / `aggregate_range` accept an optional
   `schema=` to inject build-profile consequence knowledge (the seam a build tool uses).
+
+### Fixed
+- **Reasoning models produced an empty narrative.** The completion cap covers a model's
+  private reasoning as well as its answer, and DeepSeek's reasoners spent the whole
+  2048-token default on thinking — `finish_reason: length`, `reasoning_tokens: 2048`,
+  no visible text — which surfaced as the unhelpful `empty narrative from model`. The
+  default cap is now **8192** (a cap is not a charge: nothing is paid for tokens that are
+  not generated), a truncated answer with no text is now reported with the token counts
+  and the way out, and `--ai-max-tokens` overrides the cap per run.
 
 ### Changed
 - **Default AI model is now `claude-opus-5`** (was `claude-sonnet-4-6`), and the id is no
@@ -85,6 +205,15 @@ _Nothing yet._
   package metadata); with `--ai-note` it reads `... with AI narration, model: <model>`.
   Commit messages stay footer-free. `__version__` is exported from the package.
 
+### Fixed
+- **Reasoning models produced an empty narrative.** The completion cap covers a model's
+  private reasoning as well as its answer, and DeepSeek's reasoners spent the whole
+  2048-token default on thinking — `finish_reason: length`, `reasoning_tokens: 2048`,
+  no visible text — which surfaced as the unhelpful `empty narrative from model`. The
+  default cap is now **8192** (a cap is not a charge: nothing is paid for tokens that are
+  not generated), a truncated answer with no text is now reported with the token counts
+  and the way out, and `--ai-max-tokens` overrides the cap per run.
+
 ### Changed (vs. the in-TDKit version)
 - Repo-centric instead of profile-centric: addressed by cwd / registered name / path,
   not by a build-profile name.
@@ -93,7 +222,8 @@ _Nothing yet._
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/typedev/ufo-tdkit-report/releases/tag/v0.1.0

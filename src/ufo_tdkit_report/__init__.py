@@ -28,18 +28,24 @@ from ufo_tdkit_report.model import (
     SourceReport,
 )
 from ufo_tdkit_report.narrator import (
+    DEFAULT_LANGUAGE,
     DEFAULT_MODEL,
+    DEFAULT_PROVIDER,
     KNOWN_MODELS,
     NarratorError,
     list_models,
     narrate,
     narrate_commit,
+    resolve_ai_settings,
     resolve_api_key,
     resolve_model,
+    store_account_key,
     store_api_key,
     store_model,
 )
+from ufo_tdkit_report.providers import PROVIDERS, Provider
 from ufo_tdkit_report.service import commit_facts, extract_facts, extract_working_facts
+from ufo_tdkit_report.settings import Account, AiSettings
 
 __all__ = [
     "__version__",
@@ -53,8 +59,16 @@ __all__ = [
     "store_api_key",
     "resolve_model",
     "store_model",
+    "resolve_ai_settings",
+    "store_account_key",
     "list_models",
+    "Account",
+    "AiSettings",
+    "Provider",
+    "PROVIDERS",
     "DEFAULT_MODEL",
+    "DEFAULT_PROVIDER",
+    "DEFAULT_LANGUAGE",
     "KNOWN_MODELS",
     "NarratorError",
     "SourceReport",
