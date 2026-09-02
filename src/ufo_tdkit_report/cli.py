@@ -226,11 +226,36 @@ Examples:
     return parser
 
 
+def _present_warnings_as_notes() -> None:
+    """Render this tool's own warnings as plain CLI notes, not Python tracebacks.
+
+    An unbound repo has to be *said* — silence there means the narration ran on the
+    default account's provider and key while the user believed otherwise. The library
+    raises it as a warning so any consumer sees it; a console front-end should show it
+    as one readable line on stderr, not as `…/settings.py:340: UnboundRepoWarning:`.
+    """
+    import warnings
+
+    from ufo_tdkit_report.settings import UnboundRepoWarning
+
+    original = warnings.formatwarning
+
+    def _format(message, category, filename, lineno, line=None):
+        if isinstance(category, type) and issubclass(category, UnboundRepoWarning):
+            return f"note: {message}\n"
+        return original(message, category, filename, lineno, line)
+
+    warnings.formatwarning = _format
+    warnings.simplefilter("always", UnboundRepoWarning)
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     import json
 
     from ufo_tdkit_report import NarratorError
+
+    _present_warnings_as_notes()
 
     # --- registry: `tdreport add <name> <path>` ---
     if args.target == "add":

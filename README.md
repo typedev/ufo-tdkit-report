@@ -423,12 +423,17 @@ from ufo_tdkit_report import extract_facts, aggregate_range, narrate, resolve_ai
 report = extract_facts(".", "HEAD~1..HEAD")
 print(report.render_text())                      # deterministic, no network
 
-print(narrate(report, repo="."))                 # this repo's account, model, language
+print(narrate(report))                           # this repo's account, model, language
 print(resolve_ai_settings(repo=".").model)       # what a run here would use
 ```
 
 Everything unset resolves through the same chain the CLI uses, so an embedding tool
 honours the owner's accounts and per-repo bindings without re-implementing the lookup.
+A report remembers the repository it came from, and any path *inside* a registered repo
+resolves to it, so `narrate(report)` reaches the right provider and key without the
+caller restating them. When a repository is named but not registered — meaning its
+settings came from the default account — a `UnboundRepoWarning` says so rather than
+letting it pass unnoticed.
 
 Build-profile *consequence* semantics (e.g. "ttfautohint off → no TT hinting") are
 build-tool-specific: a consumer that owns an option schema injects it via

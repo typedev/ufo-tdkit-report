@@ -78,6 +78,7 @@ def extract_facts(
         changed_file_count=changed_file_count,
         profile_name=profile_name,
         profile_options=profile_options,
+        repo=str(repo),
     )
 
 
@@ -154,6 +155,7 @@ def extract_working_facts(
         folded_facts=folded,
         raw_fact_count=len(facts),
         changed_file_count=len(changes),
+        repo=str(repo),
     )
 
 

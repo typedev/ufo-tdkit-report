@@ -95,7 +95,10 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   `commit.py` resolves a repo from cwd / registered name / explicit path. An unknown bare
   target is an **error**, never a silent cwd fallback. The legacy flat form
   (`name → path`) is read transparently. Entries are also looked up **by path**
-  (`entry_for_path`) so the plain `tdreport` in a cwd finds its own settings.
+  (`entry_for_path`), matching the nearest registered **ancestor** so any path inside a
+  repo resolves to it — `git -C` accepts anything inside a repo, and a literal-path
+  lookup let a consumer's subdirectory fall through to the default account with the wrong
+  provider and key, silently.
   Addressing a repo by **path** auto-registers it under the git root's basename
   (`cli._auto_register`) — but only an explicit path argument, and never silently: it
   prints what it remembered, and a name already pointing elsewhere is reported rather
@@ -139,7 +142,13 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   built-in defaults live once, in `providers.py` (`DEFAULT_PROVIDER`, `DEFAULT_MODEL`,
   `DEFAULT_LANGUAGE`) — never re-spell a model id as a literal in `cli.py`/`commit.py`
   (it was duplicated in four places once). The CLI passes flags down **unresolved**, so a
-  repo's own binding still applies.
+  repo's own binding still applies. Reports also carry their own `repo`, and
+  `narrate(report)` falls back to it, so a consumer cannot forget which repository a
+  report belongs to. That field must stay out of `to_dict()` and every renderer — it is a
+  machine-local path, and byte-stable output must not depend on where the repo lives.
+  When a named repo matches no registry entry, `AiSettings.repo_bound` is False and
+  `warn_if_unbound` raises `UnboundRepoWarning` (only with 2+ accounts, where the binding
+  could have mattered); silence there hides narrating on the wrong provider and key.
 - **Secrets have exactly one home.** API keys live only in `<config>/.env`, `0600`, one
   variable per account (`TDREPORT_KEY_<ACCOUNT>`); `<config>/settings.json` and
   `<config>/repos.json` hold provider/model/language/bindings and **never** a secret.

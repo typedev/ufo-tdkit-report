@@ -256,6 +256,11 @@ class SourceReport:
     changed_file_count: int = 0
     profile_name: str | None = None
     profile_options: dict | None = None
+    # Where this report came from, so `narrate(report)` can find that repo's own AI
+    # settings without the caller having to remember to pass them. DELIBERATELY absent
+    # from `to_dict()` and from every renderer: it is a machine-local path, and letting
+    # it reach the output would make byte-stable reports differ between machines.
+    repo: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -285,6 +290,7 @@ class RangeReport:
     net_removed_count: int = 0
     profile_name: str | None = None
     profile_options: dict | None = None
+    repo: str | None = None  # see SourceReport.repo — never serialized, never rendered
 
     @property
     def commit_count(self) -> int:

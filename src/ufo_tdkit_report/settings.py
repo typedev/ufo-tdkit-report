@@ -71,6 +71,14 @@ class Account:
         return out
 
 
+class UnboundRepoWarning(UserWarning):
+    """A repository was named but is not registered, so its own settings did not apply.
+
+    Its own category so a console front-end can silence it and print something friendlier,
+    while a library consumer still sees it on stderr without opting in.
+    """
+
+
 @dataclass(frozen=True)
 class AiSettings:
     """Everything one narration call needs, fully resolved. No further lookups."""
@@ -81,6 +89,9 @@ class AiSettings:
     language: str
     base_url: str
     api_key: str | None
+    # True/False when a repo was named (did it match a registry entry?), None when none
+    # was. False is the dangerous case: settings silently came from the default account.
+    repo_bound: bool | None = None
 
     @property
     def provider_name(self) -> str:
@@ -337,8 +348,9 @@ def resolve_ai_settings(
     model/language override. Nothing here reads the process environment, and no secret
     is ever taken from anywhere but ``<config>/.env`` or the explicit argument.
     """
-    entry = _repo_entry_for_path(repo) if repo else None
-    entry = entry or {}
+    found = _repo_entry_for_path(repo) if repo else None
+    repo_bound = None if repo is None else found is not None
+    entry = found or {}
 
     account_name = (account or entry.get("account") or default_account_name()).strip()
     acct = get_account(account_name)
@@ -358,7 +370,30 @@ def resolve_ai_settings(
         language=(language or entry.get("language") or acct.language or DEFAULT_LANGUAGE).strip(),
         base_url=(base_url or acct.base_url or provider_obj.base_url),
         api_key=api_key or account_key(acct.name),
+        repo_bound=repo_bound,
     )
+
+
+def warn_if_unbound(resolved: AiSettings, repo) -> bool:
+    """Warn when a named repo is unregistered *and* the choice could have mattered.
+
+    Silence here is the bad failure: a consumer hands over a path, no entry matches, and
+    the narration quietly runs on the default account's provider and key. Only worth
+    saying when more than one account exists — with a single account there is nothing the
+    binding could have changed. Returns True if a warning was issued.
+    """
+    if resolved.repo_bound is not False or len(accounts()) < 2:
+        return False
+    import warnings
+
+    warnings.warn(
+        f"repo '{repo}' is not registered, so AI settings came from account "
+        f"'{resolved.account}' ({resolved.provider.name}). Register it — `tdreport {repo}` — "
+        f"or bind it with `tdreport bind <account> {repo}` if it should use another one.",
+        UnboundRepoWarning,
+        stacklevel=3,
+    )
+    return True
 
 
 # --- pre-accounts API, kept working -------------------------------------------------

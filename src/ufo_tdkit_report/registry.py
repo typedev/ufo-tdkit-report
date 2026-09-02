@@ -134,38 +134,53 @@ def resolve(name: str) -> str | None:
     return found["path"] if found else None
 
 
+def _resolved(path: str | Path) -> Path | None:
+    try:
+        return Path(path).expanduser().resolve()
+    except OSError:
+        return None
+
+
+def _match_path(repo_path: str | Path) -> tuple[str, dict] | None:
+    """The registered entry that OWNS ``repo_path``: an exact match or the nearest ancestor.
+
+    `git -C <anything inside the repo>` works, so a path inside a registered repo has to
+    find that repo here too — otherwise a consumer handing over a subdirectory silently
+    falls through to the default account and narrates with the wrong provider and key,
+    with no error to notice. The deepest registered ancestor wins, so a repo nested
+    inside another still resolves to itself.
+    """
+    target = _resolved(repo_path)
+    if target is None:
+        return None
+    best: tuple[str, dict] | None = None
+    best_depth = -1
+    for name, found in load().items():
+        candidate = _resolved(found["path"])
+        if candidate is None:
+            continue
+        if candidate == target or candidate in target.parents:
+            depth = len(candidate.parts)
+            if depth > best_depth:
+                best, best_depth = (name, found), depth
+    return best
+
+
 def entry_for_path(repo_path: str | Path) -> dict | None:
     """The entry registered for a repo *path*, or None.
 
     The default mode is ``tdreport`` with no argument in the cwd, so per-repo settings
-    have to be findable by path and not only by registered name.
+    have to be findable by path and not only by registered name — and findable from
+    anywhere inside the repo, the way git works.
     """
-    try:
-        target = Path(repo_path).expanduser().resolve()
-    except OSError:
-        return None
-    for found in load().values():
-        try:
-            if Path(found["path"]).expanduser().resolve() == target:
-                return found
-        except OSError:
-            continue
-    return None
+    found = _match_path(repo_path)
+    return found[1] if found else None
 
 
 def name_for_path(repo_path: str | Path) -> str | None:
-    """The registered name for a repo path, or None."""
-    try:
-        target = Path(repo_path).expanduser().resolve()
-    except OSError:
-        return None
-    for name, found in load().items():
-        try:
-            if Path(found["path"]).expanduser().resolve() == target:
-                return name
-        except OSError:
-            continue
-    return None
+    """The registered name for a repo path (or for anything inside it), or None."""
+    found = _match_path(repo_path)
+    return found[0] if found else None
 
 
 def stale() -> list[tuple[str, str]]:

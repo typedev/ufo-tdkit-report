@@ -9,6 +9,29 @@ All notable changes to this project are documented here. The format follows
 
 _Nothing yet._
 
+## [0.2.1] - 2026-09-02
+
+### Fixed
+- **A path *inside* a registered repo now finds it.** `entry_for_path` matched paths
+  literally, so a consumer that handed over a subdirectory — which `git -C` accepts
+  happily — fell through to the default account and narrated with the wrong provider and
+  key, silently. It now matches the nearest registered ancestor, deepest first, so a repo
+  nested inside another still resolves to itself.
+
+### Added
+- **Reports carry the repository they came from.** `extract_facts`,
+  `extract_working_facts` and `aggregate_range` record it, and `narrate(report)` uses it
+  when no `repo=` is passed — so an embedding tool can no longer forget to say which
+  repository a report belongs to and quietly get the default account's provider and key.
+  The field is deliberately absent from `to_dict()` and from every renderer: it is a
+  machine-local path, and letting it reach the output would break byte-stability.
+- **An unregistered repo is announced, not passed over in silence.**
+  `AiSettings.repo_bound` says whether a named repo matched a registry entry, and
+  `narrate`/`narrate_commit` raise `UnboundRepoWarning` when it did not — but only when
+  more than one account exists, since with a single account the binding could not have
+  changed anything. The CLI renders it as one readable `note:` line rather than a Python
+  warning traceback.
+
 ## [0.2.0] - 2026-09-02
 
 ### Added
@@ -222,7 +245,8 @@ _Nothing yet._
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.0...v0.1.1

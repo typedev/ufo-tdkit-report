@@ -480,5 +480,38 @@ def test_account_add_on_a_tty_runs_the_guided_flow(tmp_path, monkeypatch, capsys
     assert "sk-typed" not in capsys.readouterr().out
 
 
+def test_an_unbound_repo_is_announced(tmp_path, monkeypatch, recwarn):
+    """Silence would mean narrating on the default account's provider and key unnoticed."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    from ufo_tdkit_report import settings
+
+    settings.add_account("work", provider="deepseek")  # >1 account: the binding matters
+    repo = _git_repo(tmp_path, "Unbound")
+
+    assert main(["--repo", str(repo), "--notes", "HEAD~0..HEAD", "--ai-note"]) == 1
+    warned = recwarn.pop(settings.UnboundRepoWarning)
+    assert "is not registered" in str(warned.message)
+    assert "tdreport bind" in str(warned.message)
+
+
+def test_the_cli_renders_that_warning_as_one_readable_line():
+    """A console front-end shows a note, not `…/settings.py:340: UnboundRepoWarning:`."""
+    import warnings
+
+    from ufo_tdkit_report.cli import _present_warnings_as_notes
+    from ufo_tdkit_report.settings import UnboundRepoWarning
+
+    original = warnings.formatwarning
+    try:
+        _present_warnings_as_notes()
+        ours = warnings.formatwarning("repo 'x' is not registered", UnboundRepoWarning, "s.py", 340)
+        assert ours == "note: repo 'x' is not registered\n"
+        # Every other warning keeps Python's own formatting.
+        other = warnings.formatwarning("deprecated", DeprecationWarning, "s.py", 12)
+        assert "s.py" in other and "DeprecationWarning" in other
+    finally:
+        warnings.formatwarning = original
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

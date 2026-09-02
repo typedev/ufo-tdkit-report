@@ -117,4 +117,5 @@ def aggregate_range(
         net_removed_count=net_removed,
         profile_name=profile_name,
         profile_options=profile_options,
+        repo=str(repo),
     )

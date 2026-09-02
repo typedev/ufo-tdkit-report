@@ -130,6 +130,37 @@ def test_a_pre_accounts_config_keeps_working():
     assert settings.account_key("acme") is None
 
 
+def test_repo_bound_flag_reports_whether_the_binding_applied(tmp_path):
+    repo = _repo(tmp_path, "MyFont")
+    assert settings.resolve_ai_settings().repo_bound is None          # no repo named
+    assert settings.resolve_ai_settings(repo=str(repo)).repo_bound is False  # named, unknown
+    registry.add("myfont", str(repo))
+    assert settings.resolve_ai_settings(repo=str(repo)).repo_bound is True
+    # …and from inside it, too.
+    assert settings.resolve_ai_settings(repo=str(repo / "sources")).repo_bound is True
+
+
+def test_an_unbound_repo_warns_only_when_the_choice_could_matter(tmp_path, recwarn):
+    repo = _repo(tmp_path, "MyFont")
+    resolved = settings.resolve_ai_settings(repo=str(repo))
+
+    # One account: the binding could not have changed anything, so no noise.
+    assert settings.warn_if_unbound(resolved, str(repo)) is False
+    assert not recwarn.list
+
+    # Two accounts: silence here would hide narrating on the wrong provider and key.
+    settings.add_account("work", provider="deepseek")
+    assert settings.warn_if_unbound(resolved, str(repo)) is True
+    warned = recwarn.pop(settings.UnboundRepoWarning)
+    assert "is not registered" in str(warned.message)
+    assert "tdreport bind" in str(warned.message)
+
+    # Once registered, nothing is said.
+    registry.add("myfont", str(repo))
+    bound = settings.resolve_ai_settings(repo=str(repo))
+    assert settings.warn_if_unbound(bound, str(repo)) is False
+
+
 def test_require_explains_what_is_missing():
     settings.add_account("acme", provider="deepseek")  # no model, no key
     resolved = settings.resolve_ai_settings(account="acme")

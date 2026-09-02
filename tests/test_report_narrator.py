@@ -333,6 +333,62 @@ def test_list_models_falls_back_offline():
     assert list_models(api_key="k", transport=lambda *a: {"data": []}) == list(KNOWN_MODELS)
 
 
+def test_a_report_carries_its_repo_so_a_caller_cannot_forget(tmp_path, monkeypatch):
+    """`narrate(report)` finds that repository's account without being told twice.
+
+    The consumer used to have to remember `repo=`; forgetting it failed silently, on the
+    default account's provider and key. Now the report knows where it came from.
+    """
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    import subprocess
+
+    from ufo_tdkit_report import extract_working_facts, registry, settings
+
+    repo = tmp_path / "MyFont"
+    (repo / "sources").mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "i"], check=True)
+    (repo / "a.txt").write_text("x")
+
+    settings.add_account("work", provider="deepseek", model="deepseek-chat")
+    settings.store_account_key("sk-work", account="work")
+    registry.add("MyFont", str(repo), account="work")
+
+    # Built from a SUBDIRECTORY, and narrated with no repo= at all.
+    report = extract_working_facts(str(repo / "sources"))
+    assert report.repo == str(repo / "sources")
+
+    captured = {}
+
+    def fake_transport(url, headers, body, timeout):
+        captured["url"] = url
+        captured["auth"] = headers.get("Authorization")
+        return {"choices": [{"message": {"content": "prose"}}]}
+
+    narrate(report, transport=fake_transport)
+    assert captured["url"] == "https://api.deepseek.com/v1/chat/completions"
+    assert captured["auth"] == "Bearer sk-work"
+
+
+def test_the_repo_never_reaches_the_output(tmp_path, monkeypatch):
+    """It is a machine-local path: in the report it would break byte-stability."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    import subprocess
+
+    from ufo_tdkit_report import extract_working_facts
+
+    repo = tmp_path / "MyFont"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "i"], check=True)
+    (repo / "a.txt").write_text("x")
+
+    report = extract_working_facts(str(repo))
+    assert report.repo == str(repo)
+    assert "repo" not in report.to_dict()
+    assert str(repo) not in report.render_text()
+
+
 # --- providers and language ---------------------------------------------------------
 
 

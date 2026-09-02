@@ -50,6 +50,7 @@ from ufo_tdkit_report.settings import (
     store_account_key,
     store_api_key,
     store_model,
+    warn_if_unbound,
 )
 
 # Re-exported so the pre-accounts import sites keep working unchanged.
@@ -301,9 +302,15 @@ def narrate_commit(
     """
     # `.require()` up front: a missing key or model must fail before any work, not after
     # the prompt has been assembled (embedding callers rely on the early NarratorError).
-    settings = resolve_ai_settings(
+    # The report remembers where it came from, so a caller that forgets `repo=` still
+    # gets that repository's own account, model and language rather than the default
+    # account's — forgetting used to fail silently, with the wrong provider and key.
+    repo = repo or getattr(report, "repo", None)
+    resolved = resolve_ai_settings(
         repo=repo, account=account, provider=provider, model=model, language=language, api_key=api_key
-    ).require()
+    )
+    warn_if_unbound(resolved, repo)
+    settings = resolved.require()
     facts = _facts_block(report)
     user = (
         "Write a git commit message from the following deterministic source-change facts. "
@@ -340,9 +347,15 @@ def narrate(
     facts, the footer and the section headings stay English whatever the prose
     language is: they are deterministic output and must not vary per user.
     """
-    settings = resolve_ai_settings(
+    # The report remembers where it came from, so a caller that forgets `repo=` still
+    # gets that repository's own account, model and language rather than the default
+    # account's — forgetting used to fail silently, with the wrong provider and key.
+    repo = repo or getattr(report, "repo", None)
+    resolved = resolve_ai_settings(
         repo=repo, account=account, provider=provider, model=model, language=language, api_key=api_key
-    ).require()
+    )
+    warn_if_unbound(resolved, repo)
+    settings = resolved.require()
     system, user = build_messages(report, language=settings.language)
     narrative = _call(
         system, user, settings=settings, transport=transport,
