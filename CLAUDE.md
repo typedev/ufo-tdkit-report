@@ -75,6 +75,14 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   Messages, OpenAI-compatible `/chat/completions`). Pure — payload/header building and
   response parsing, no I/O. Every provider but Anthropic speaks the OpenAI dialect, so a
   new one is a table row.
+- **`grounding.py`** is the deterministic post-check on a narration: pure, offline, no
+  model call. Every rule keys on a **form prose does not take** (codepoints, coordinate
+  deltas, `ssNN`/`a.ssNN`, one-edit near-misses of identifiers) or on the model's **own
+  markup**. The first design flagged every narrative token missing from the facts and hit
+  forty-eight false positives on one real narration — prose is supposed to contain words
+  the facts do not. Near-miss candidates come from `identifiers()`, never from
+  `vocabulary()`: comparing against every word in the facts made `changed` a "near miss"
+  of `changes` in the report's own heading.
 - **`settings.py`** owns AI **accounts** and `resolve_ai_settings` — the single
   precedence chain (see below). **`config.py`** holds the config-dir/`.env` primitives
   both `settings` and `registry` need (split out to avoid an import cycle; still
@@ -169,6 +177,17 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   indistinguishable from having nothing to say. Hence 8192 rather than a prose-sized cap,
   and `_truncation_error`, which reports the token counts instead of "empty narrative".
   Don't shrink that default back.
+- **Grounding is checked, and what cannot be checked is said.** The prompt requires every
+  identifier to be backticked, because `four`, `one`, `section` and `period` are glyph
+  names *and* English words — "in one glyph across four masters" is correct prose, and no
+  heuristic separates it from a glyph claim. The model declares intent through markup and
+  `grounding.check` verifies the declaration; never replace that with guessing at which
+  bare word is a glyph. When the model marks up nothing, `markup_missing` reports the lost
+  coverage rather than returning a clean result. Strictness (`strict_grounding`) resolves
+  through the same chain as everything else and defaults to warning — a refusal throws
+  away a paid call, and a finding is a constatation, not a verdict. The findings go into a
+  caution block for release notes but **never into a commit message**: `git commit -F`
+  does not strip comments, so anything appended there enters history.
 - **Localization stops at the prose.** `--ai-lang` / `set-lang` changes only the AI
   narrative. The deterministic report, the attached facts, section headings and the
   attribution footer stay English — localizing them would make byte-stable output depend

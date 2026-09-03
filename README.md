@@ -400,6 +400,41 @@ not just the CLI:
 The provider and model that actually ran are named in the attribution line of every
 AI-drafted report and commit message, so it is always visible after the fact.
 
+### Grounding check
+
+The narrator may only restate the facts. That used to rest entirely on the model's
+obedience plus a human reading the attached `<details>` — fine for a large hosted model,
+thin once a local 7B can narrate. So after every narration the prose is compared against
+the facts, deterministically and offline:
+
+- codepoints, coordinate deltas and feature tags/alternates the facts do not contain;
+- **near-misses** of names they do contain (`guillemotleft` for `guillemetleft`) — what
+  invention actually looks like;
+- anything the model marked up as an identifier that is not in the facts.
+
+That last one is why the prompt asks the model to backtick every glyph name, codepoint and
+tag. `four`, `one`, `section`, `period` and `bullet` are standard glyph names *and*
+ordinary English words, so "in one glyph across four masters" is correct prose containing
+two of them; no length filter or neighbourhood rule separates that from a glyph claim. The
+model declares what it means by marking it up, and the check verifies the declaration
+rather than guessing. If a model ignores that instruction, the result says glyph-name
+checking was skipped — a skipped check must not look like a clean pass.
+
+By default a finding is a note; a strict account or repo refuses the narration instead:
+
+```bash
+tdreport set-grounding strict                  # this account
+tdreport repo AcmeSans grounding warn          # …but not this repo
+tdreport --ai-note --strict-grounding          # just this run
+```
+
+Strictness is a setting rather than only a flag because it belongs to the *model*: a small
+local one earns a refusal, a large hosted one usually needs only the note.
+
+**What it cannot catch:** an invented *meaning* attached to a real identifier ("`uni20C5`,
+the Tamil currency sign"). No token comparison reaches that. The facts travel with every
+narration precisely so that a human can.
+
 The narrator is strictly grounded — it may only restate the deterministic facts, which
 are always attached verbatim in a `<details>` block — and it never publishes anything.
 

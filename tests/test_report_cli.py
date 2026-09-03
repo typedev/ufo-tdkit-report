@@ -513,5 +513,53 @@ def test_the_cli_renders_that_warning_as_one_readable_line():
         warnings.formatwarning = original
 
 
+def test_set_grounding_and_the_per_repo_override(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    from ufo_tdkit_report import registry, settings
+
+    assert main(["set-grounding", "strict"]) == 0
+    out = capsys.readouterr().out
+    assert "grounding for account 'default': strict" in out
+    assert "will now be refused" in out
+    assert settings.resolve_ai_settings().strict_grounding is True
+
+    repo = _git_repo(tmp_path, "MyFont")
+    assert main([str(repo)]) == 0
+    capsys.readouterr()
+    assert main(["repo", "MyFont", "grounding", "warn"]) == 0
+    assert "grounding: warn" in capsys.readouterr().out
+    assert settings.resolve_ai_settings(repo=str(repo)).strict_grounding is False
+    assert registry.entry("MyFont")["strict_grounding"] is False
+
+    assert main(["set-grounding", "sloppy"]) == 1
+    assert "expected 'strict' or 'warn'" in capsys.readouterr().out
+
+
+def test_a_strict_account_refuses_an_unsupported_narration(tmp_path, monkeypatch, capsys):
+    """The whole point of strict: the run fails instead of shipping invented names."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    from ufo_tdkit_report import narrator, settings
+    from ufo_tdkit_report.model import FactType, FileKind, FoldedFact, RangeReport
+
+    settings.add_account("local", provider="ollama", model="tiny", strict_grounding=True)
+    report = RangeReport(
+        range_spec="v1..HEAD",
+        folded_facts=[FoldedFact(FactType.OUTLINE_REDRAWN, FileKind.GLIF, "redrawn in `Ring`")],
+    )
+
+    def invents(url, headers, body, timeout):
+        return {"choices": [{"message": {"content": "Redrew `Ring` and `questiondown`."}}]}
+
+    with pytest.raises(narrator.NarratorError, match="grounding check failed"):
+        narrator.narrate(report, account="local", transport=invents)
+
+    # The same narration is kept, with a note, when the account only warns.
+    settings.update_account("local", strict_grounding=False)
+    with pytest.warns(narrator.GroundingWarning, match="questiondown"):
+        out = narrator.narrate(report, account="local", transport=invents)
+    assert "Grounding check:" in out
+    assert "`questiondown` — not in the facts" in out
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -161,6 +161,28 @@ def test_an_unbound_repo_warns_only_when_the_choice_could_matter(tmp_path, recwa
     assert settings.warn_if_unbound(bound, str(repo)) is False
 
 
+def test_grounding_strictness_resolves_like_every_other_setting(tmp_path):
+    """It belongs to the MODEL, so its home is the account — with the usual overrides."""
+    repo = _repo(tmp_path, "MyFont")
+    assert settings.resolve_ai_settings().strict_grounding is False   # built-in default
+
+    settings.add_account("local", provider="ollama", strict_grounding=True)
+    assert settings.resolve_ai_settings(account="local").strict_grounding is True
+
+    registry.add("myfont", str(repo), account="local")
+    assert settings.resolve_ai_settings(repo=str(repo)).strict_grounding is True
+    # The repo may relax what its account demands…
+    registry.add("myfont", str(repo), strict_grounding=False)
+    assert settings.resolve_ai_settings(repo=str(repo)).strict_grounding is False
+    assert registry.entry("myfont")["strict_grounding"] is False      # survives the JSON
+    # …and a per-run flag beats both.
+    assert settings.resolve_ai_settings(repo=str(repo), strict_grounding=True).strict_grounding is True
+
+    # Clearing the override hands it back to the account.
+    registry.add("myfont", str(repo), strict_grounding=None)
+    assert settings.resolve_ai_settings(repo=str(repo)).strict_grounding is True
+
+
 def test_require_explains_what_is_missing():
     settings.add_account("acme", provider="deepseek")  # no model, no key
     resolved = settings.resolve_ai_settings(account="acme")

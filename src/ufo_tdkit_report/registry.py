@@ -27,7 +27,9 @@ from ufo_tdkit_report.config import config_dir
 
 # Per-repo keys an entry may carry besides "path". Deliberately small: anything that
 # would be a secret belongs in <config>/.env, keyed by account.
-OVERRIDE_KEYS = ("account", "provider", "model", "language")
+OVERRIDE_KEYS = ("account", "provider", "model", "language", "strict_grounding")
+# Overrides whose value is a flag rather than a name.
+BOOL_OVERRIDE_KEYS = ("strict_grounding",)
 
 
 def _registry_path() -> Path:
@@ -42,7 +44,10 @@ def _normalize(value) -> dict | None:
         entry = {"path": value["path"]}
         for key in OVERRIDE_KEYS:
             stored = value.get(key)
-            if isinstance(stored, str) and stored.strip():
+            if key in BOOL_OVERRIDE_KEYS:
+                if isinstance(stored, bool):
+                    entry[key] = stored
+            elif isinstance(stored, str) and stored.strip():
                 entry[key] = stored.strip()
         return entry
     return None
@@ -77,7 +82,7 @@ def save(mapping: dict[str, dict]) -> None:
     path.write_text(json.dumps(mapping, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def add(name: str, repo_path: str, **overrides: str | None) -> str:
+def add(name: str, repo_path: str, **overrides) -> str:
     """Register ``name`` -> absolute repo path; returns the stored path.
 
     Keyword overrides (``account``, ``provider``, ``model``, ``language``) are merged
@@ -93,6 +98,8 @@ def add(name: str, repo_path: str, **overrides: str | None) -> str:
             raise ValueError(f"unknown repo override '{key}' (known: {', '.join(OVERRIDE_KEYS)})")
         if value is None:
             entry.pop(key, None)
+        elif key in BOOL_OVERRIDE_KEYS:
+            entry[key] = bool(value)
         elif value.strip():
             entry[key] = value.strip()
     mapping[name] = entry

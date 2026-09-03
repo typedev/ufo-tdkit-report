@@ -130,6 +130,25 @@ def _registry_name_for(repo: str) -> str | None:
     return registry.name_for_path(repo)
 
 
+def _parse_strictness(answer: str) -> bool | None:
+    """`strict`/`warn` (and the obvious synonyms) -> a flag, or None if unrecognised."""
+    value = (answer or "").strip().lower()
+    if value in ("strict", "on", "yes", "true", "1", "refuse"):
+        return True
+    if value in ("warn", "off", "no", "false", "0", "warning"):
+        return False
+    return None
+
+
+def _prompt_line(question: str) -> str | None:
+    """One line of input; None when the user aborts."""
+    try:
+        return input(question).strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return None
+
+
 def _is_range(arg: str | None) -> bool:
     """True if ``arg`` is a commit range (``a..b``) → committed-history modes.
 
@@ -157,6 +176,7 @@ Examples:
   tdreport set-key sk-...         # store that provider's API key, owner-only, for --ai-note
   tdreport set-model              # pick the --ai-note model from a menu of available ones
   tdreport set-lang Spanish       # AI prose language (the deterministic facts stay English)
+  tdreport set-grounding strict   # refuse a narration the facts do not support (default: warn)
   tdreport set-url http://localhost:8000/v1   # a custom OpenAI-compatible endpoint
   tdreport --ai-note --ai-max-tokens 16000    # room for a reasoning model to think first
   tdreport settings               # interactive screen for all of the above
@@ -176,7 +196,7 @@ Examples:
         "target", nargs="?",
         help="repo selector (name/path), a commit range, or a command: 'settings', "
              "'accounts', 'account', 'repo', 'bind', 'add', 'ls', 'rm', 'prune', "
-             "'set-key', 'set-model', 'set-provider', 'set-lang', 'set-url'",
+             "'set-key', 'set-model', 'set-provider', 'set-lang', 'set-url', 'set-grounding'",
     )
     parser.add_argument(
         "rest", nargs="*",
@@ -213,6 +233,15 @@ Examples:
     from ufo_tdkit_report.narrator import DEFAULT_MAX_TOKENS
 
     parser.add_argument(
+        "--strict-grounding", dest="strict_grounding", action="store_true", default=None,
+        help="refuse a narration whose tokens the facts do not support (default: warn). "
+             "Also settable per account/repo — see `tdreport set-grounding`",
+    )
+    parser.add_argument(
+        "--no-strict-grounding", dest="strict_grounding", action="store_false",
+        help="warn instead of refusing, overriding a strict account or repo",
+    )
+    parser.add_argument(
         "--ai-max-tokens", type=int, default=None,
         help=f"completion cap for --ai-note (default {DEFAULT_MAX_TOKENS}); a reasoning model "
              f"spends this budget on thinking before it writes anything",
@@ -236,17 +265,20 @@ def _present_warnings_as_notes() -> None:
     """
     import warnings
 
+    from ufo_tdkit_report.narrator import GroundingWarning
     from ufo_tdkit_report.settings import UnboundRepoWarning
 
+    ours = (UnboundRepoWarning, GroundingWarning)
     original = warnings.formatwarning
 
     def _format(message, category, filename, lineno, line=None):
-        if isinstance(category, type) and issubclass(category, UnboundRepoWarning):
+        if isinstance(category, type) and issubclass(category, ours):
             return f"note: {message}\n"
         return original(message, category, filename, lineno, line)
 
     warnings.formatwarning = _format
-    warnings.simplefilter("always", UnboundRepoWarning)
+    for category in ours:
+        warnings.simplefilter("always", category)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -454,6 +486,14 @@ def main(argv: list[str] | None = None) -> int:
             _registry.add(name, entry["path"], **{f: None for f in fields})
             print(f"'{name}' now inherits {', '.join(fields)} from its account")
             return 0
+        if field in ("grounding", "strict_grounding"):
+            strict = _parse_strictness(value)
+            if strict is None:
+                print(f"error: expected 'strict' or 'warn', got '{value}'")
+                return 1
+            _registry.add(name, entry["path"], strict_grounding=strict)
+            print(f"'{name}' grounding: {'strict' if strict else 'warn'}")
+            return 0
         if field not in _registry.OVERRIDE_KEYS:
             print(f"error: unknown field '{field}' (known: {', '.join(_registry.OVERRIDE_KEYS)}, clear)")
             return 1
@@ -574,6 +614,29 @@ def main(argv: list[str] | None = None) -> int:
         print("(the deterministic facts, headings and footer stay English by design)")
         return 0
 
+    # --- grounding strictness: `tdreport set-grounding strict|warn` ---
+    if args.target == "set-grounding":
+        current = "strict" if _settings.resolve_ai_settings(account=account_name).strict_grounding else "warn"
+        answer = args.rest[0] if args.rest else None
+        if answer is None:
+            if not sys.stdin.isatty():
+                print(f"current grounding: {current}")
+                print("error: usage: tdreport set-grounding strict|warn (no TTY to prompt)")
+                return 1
+            answer = _prompt_line(f"Grounding for account '{account_name}' — strict or warn [{current}]: ")
+            if answer is None:
+                return 0
+            answer = answer or current
+        strict = _parse_strictness(answer)
+        if strict is None:
+            print(f"error: expected 'strict' or 'warn', got '{answer}'")
+            return 1
+        _settings.update_account(account_name, strict_grounding=strict)
+        print(f"grounding for account '{account_name}': {'strict' if strict else 'warn'}")
+        if strict:
+            print("  a narration whose tokens the facts do not support will now be refused")
+        return 0
+
     # --- model preference: `tdreport set-model [<model-id>]` (menu when omitted) ---
     if args.target == "set-model":
         try:
@@ -611,7 +674,8 @@ def main(argv: list[str] | None = None) -> int:
     # Per-run AI overrides are passed down UNRESOLVED: resolution happens once, inside the
     # narrator, where the target repo's own account/model/language binding is also known.
     ai_opts = dict(
-        model=args.ai_model, provider=args.ai_provider, language=args.ai_lang, account=args.ai_account
+        model=args.ai_model, provider=args.ai_provider, language=args.ai_lang,
+        account=args.ai_account, strict_grounding=args.strict_grounding,
     )
     if args.ai_max_tokens:
         ai_opts["max_tokens"] = args.ai_max_tokens

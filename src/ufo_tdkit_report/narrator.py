@@ -60,6 +60,7 @@ __all__ = [
     "DEFAULT_PROVIDER",
     "KNOWN_MODELS",
     "NarratorError",
+    "GroundingWarning",
     "build_messages",
     "config_dir",
     "config_env_path",
@@ -98,7 +99,11 @@ _GROUNDING_RULES = """\
   If a fact says `uni20C5`, write `uni20C5` — do not name it. If you do not know what
   an option does, describe only that it changed; do not explain its effect.
 - Do not editorialize about quality, intent, or impact beyond what the facts state.
-  Where the facts are ambiguous, hedge ("appears to", "according to the source diff").\
+  Where the facts are ambiguous, hedge ("appears to", "according to the source diff").
+- Wrap every glyph name, codepoint, feature/class tag, master name and file path in
+  `backticks`, spelled exactly as the facts spell it. Do NOT backtick an ordinary word
+  that merely happens to also be a glyph name — "in one glyph across four masters" is
+  prose and stays unmarked, while `four` in backticks would be a claim about the glyph.\
 """
 
 _SYSTEM_PROMPT = f"""\
@@ -157,6 +162,39 @@ def _commit_language_rule(language: str | None) -> str:
         "\n- Keep the conventional-commit type prefix (`feat:`, `fix:`, `chore:`) in English: "
         "it is syntax, not prose."
     )
+
+
+class GroundingWarning(UserWarning):
+    """The narrative used identifiers the facts do not support.
+
+    Its own category so a console front-end can present it as a note, and a library
+    consumer can route it into its own report instead of stderr.
+    """
+
+
+def _check_grounding(narrative: str, facts: str, report, settings):
+    """Verify the narrative against its facts; warn, or refuse under strict grounding.
+
+    Warning is the default because a refusal throws away a paid call, and a finding is a
+    constatation ("this token is not in the facts"), not a verdict. Strictness is a
+    per-account setting rather than a per-run flag alone: it belongs to the model — a
+    small local one earns it, a large hosted one usually does not.
+    """
+    import warnings
+
+    from ufo_tdkit_report.grounding import check
+
+    result = check(narrative, facts, report)
+    message = result.summary()
+    if not message:
+        return result
+    if result.findings and settings.strict_grounding:
+        raise NarratorError(
+            f"grounding check failed: {message}. The facts are the ground truth — "
+            f"re-run, or relax this account with `tdreport set-grounding warn`."
+        )
+    warnings.warn(message, GroundingWarning, stacklevel=3)
+    return result
 
 
 def _facts_block(report: SourceReport | RangeReport) -> str:
@@ -290,6 +328,7 @@ def narrate_commit(
     language: str | None = None,
     account: str | None = None,
     repo: str | None = None,
+    strict_grounding: bool | None = None,
     transport=_http_post,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     timeout: int | None = None,
@@ -324,6 +363,10 @@ def narrate_commit(
         system, user, settings=settings, transport=transport,
         max_tokens=max_tokens, timeout=_timeout_for(settings, timeout),
     ).rstrip()
+    # A commit message is used verbatim by `git commit -F`, which does not strip comments
+    # — so a grounding note must never be appended to it. It is raised as a warning the
+    # CLI shows before the "Commit this?" prompt instead.
+    _check_grounding(msg, facts, report, settings)
     return f"{msg}\n\n{_credit(ai=True, model=settings.model, provider=settings.provider_name)}\n"
 
 
@@ -336,6 +379,7 @@ def narrate(
     language: str | None = None,
     account: str | None = None,
     repo: str | None = None,
+    strict_grounding: bool | None = None,
     transport=_http_post,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     timeout: int | None = None,
@@ -365,9 +409,23 @@ def narrate(
     from ufo_tdkit_report.render import attribution
 
     facts = _facts_block(report)
+    result = _check_grounding(narrative, facts, report, settings)
+    caution = ""
+    if result.findings:
+        listed = "\n".join(f"> - {f.describe()}" for f in result.findings)
+        caution = (
+            f"\n> **Grounding check:** {len(result.findings)} token(s) below do not appear "
+            f"in the deterministic facts. Verify them against the details.\n>\n{listed}\n"
+        )
+    elif result.markup_missing:
+        caution = (
+            "\n> **Grounding check:** the model did not mark up identifiers, so glyph-name "
+            "checking was skipped for this narration.\n"
+        )
     return (
         f"{narrative}\n\n"
-        f"> AI-drafted from deterministic facts — verify before publishing.\n\n"
+        f"> AI-drafted from deterministic facts — verify before publishing.\n"
+        f"{caution}\n"
         f"<details>\n<summary>Technical details (deterministic, auto-generated — verify here)</summary>\n\n"
         f"{facts}\n\n</details>\n\n"
         f"{attribution(ai=True, model=settings.model, provider=settings.provider_name)}\n"

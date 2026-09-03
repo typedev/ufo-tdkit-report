@@ -61,6 +61,10 @@ class Account:
     model: str = ""
     language: str = ""
     base_url: str = ""
+    # Refuse a narration whose tokens the facts do not support, rather than warning.
+    # A per-account setting because it belongs to the MODEL: a small local one earns
+    # strictness, a large hosted one usually does not.
+    strict_grounding: bool = False
 
     def to_dict(self) -> dict:
         out = {"provider": self.provider}
@@ -68,6 +72,8 @@ class Account:
             value = getattr(self, key)
             if value:
                 out[key] = value
+        if self.strict_grounding:
+            out["strict_grounding"] = True
         return out
 
 
@@ -89,6 +95,7 @@ class AiSettings:
     language: str
     base_url: str
     api_key: str | None
+    strict_grounding: bool = False
     # True/False when a repo was named (did it match a registry entry?), None when none
     # was. False is the dangerous case: settings silently came from the default account.
     repo_bound: bool | None = None
@@ -166,6 +173,7 @@ def accounts() -> dict[str, Account]:
                 model=str(value.get("model") or ""),
                 language=str(value.get("language") or ""),
                 base_url=str(value.get("base_url") or ""),
+                strict_grounding=bool(value.get("strict_grounding")),
             )
     out.setdefault(DEFAULT_ACCOUNT, _legacy_default_account())
     return out
@@ -214,12 +222,16 @@ def add_account(
     model: str = "",
     language: str = "",
     base_url: str = "",
+    strict_grounding: bool = False,
     make_default: bool = False,
 ) -> Account:
     """Create or replace an account. Stores no secret — use :func:`store_account_key`."""
     name = validate_account_name(name)
     get_provider(provider)  # reject an unknown provider before writing anything
-    account = Account(name=name, provider=provider, model=model, language=language, base_url=base_url)
+    account = Account(
+        name=name, provider=provider, model=model, language=language,
+        base_url=base_url, strict_grounding=strict_grounding,
+    )
     data = load_settings()
     stored = data.get("accounts")
     data["accounts"] = dict(stored) if isinstance(stored, dict) else {}
@@ -232,15 +244,19 @@ def add_account(
     return account
 
 
-def update_account(name: str | None = None, **fields: str) -> Account:
+def update_account(name: str | None = None, **fields) -> Account:
     """Change fields of one account (the default when omitted); returns the new state."""
     account = get_account(name)
-    unknown = set(fields) - {"provider", "model", "language", "base_url"}
+    unknown = set(fields) - {"provider", "model", "language", "base_url", "strict_grounding"}
     if unknown:
         raise ValueError(f"unknown account field(s): {', '.join(sorted(unknown))}")
     if "provider" in fields:
         get_provider(fields["provider"])
-    updated = replace(account, **{k: (v or "") for k, v in fields.items()})
+    coerced = {
+        k: bool(v) if k == "strict_grounding" else (v or "")
+        for k, v in fields.items()
+    }
+    updated = replace(account, **coerced)
     data = load_settings()
     stored = data.get("accounts")
     data["accounts"] = dict(stored) if isinstance(stored, dict) else {}
@@ -331,6 +347,14 @@ def masked_key(account: str | None = None) -> str:
 # --- the one resolution chain ------------------------------------------------------
 
 
+def _first_not_none(*values) -> bool:
+    """The first value that was actually set, along the usual chain. Defaults to False."""
+    for value in values:
+        if value is not None:
+            return bool(value)
+    return False
+
+
 def resolve_ai_settings(
     *,
     repo: str | Path | None = None,
@@ -340,6 +364,7 @@ def resolve_ai_settings(
     language: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    strict_grounding: bool | None = None,
 ) -> AiSettings:
     """Resolve narration settings once: explicit > repo > account > default > built-in.
 
@@ -371,6 +396,9 @@ def resolve_ai_settings(
         base_url=(base_url or acct.base_url or provider_obj.base_url),
         api_key=api_key or account_key(acct.name),
         repo_bound=repo_bound,
+        strict_grounding=_first_not_none(
+            strict_grounding, entry.get("strict_grounding"), acct.strict_grounding
+        ),
     )
 
 

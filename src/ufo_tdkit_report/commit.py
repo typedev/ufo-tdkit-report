@@ -83,6 +83,7 @@ def inspect(
     provider: str | None = None,
     language: str | None = None,
     account: str | None = None,
+    strict_grounding: bool | None = None,
     max_tokens: int | None = None,
 ) -> tuple[str, str, bool]:
     """Inspect uncommitted changes; write the drafted message to the report file.
@@ -103,7 +104,7 @@ def inspect(
         extra = {"max_tokens": max_tokens} if max_tokens else {}
         text = narrate_commit(
             report, repo=repo, model=model, provider=provider, language=language,
-            account=account, **extra
+            account=account, strict_grounding=strict_grounding, **extra
         )
     else:
         text = render_commit_message(report)
@@ -123,6 +124,7 @@ def commit(
     provider: str | None = None,
     language: str | None = None,
     account: str | None = None,
+    strict_grounding: bool | None = None,
     max_tokens: int | None = None,
 ) -> tuple[int, str]:
     """Commit the working tree using the drafted message (generating it if absent).
@@ -140,7 +142,7 @@ def commit(
     path = report_path(repo)
     if not path.is_file():
         inspect(target, ai=ai, model=model, provider=provider, language=language,
-                account=account, max_tokens=max_tokens)
+                account=account, strict_grounding=strict_grounding, max_tokens=max_tokens)
 
     _git(repo, "add", "-A")
     commit_msg = path.read_text(encoding="utf-8")

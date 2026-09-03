@@ -9,6 +9,42 @@ All notable changes to this project are documented here. The format follows
 
 _Nothing yet._
 
+## [0.3.0] - 2026-09-02
+
+### Added
+- **A deterministic grounding check.** After a narration, the tokens in the prose are
+  compared against the facts the model was given — offline, no second model call. It
+  reports codepoints, measurements, feature tags and alternates that the facts do not
+  contain, and **near-misses** of names that they do (`guillemotleft` for
+  `guillemetleft`), which is what invention actually looks like. The narrator's guarantee
+  used to rest entirely on the model's obedience plus a human reading the `<details>`
+  block; that was fine for a large hosted model and thin once a local 7B can narrate.
+- **Identifiers are now marked up, and the markup is what gets checked.** The prompt asks
+  the model to backtick every glyph name, codepoint, tag, master name and path. This is
+  not cosmetic: `four`, `one`, `section`, `period` and `bullet` are standard glyph names
+  *and* ordinary English words, so "in one glyph across four masters" is correct prose
+  containing two of them. No length filter or neighbourhood heuristic separates those
+  cases — a rule keyed on "a glyph name next to another glyph name" flags the `one` in
+  that very sentence. The model declares what it means by marking it up, and the check
+  verifies the declaration instead of guessing at intent.
+- **A skipped check is reported, not passed over.** When the facts contain identifiers
+  and the narrative marks up none, the result says glyph-name checking was skipped for
+  that narration — a weak model ignoring the instruction must not look like a clean pass.
+- **`strict_grounding`, resolved like every other setting.** Warning is the default; a
+  strict account or repo refuses the narration instead. It is a setting rather than only
+  a flag because it belongs to the *model* — a small local one earns a refusal, a large
+  hosted one usually needs only the note. Set it with `tdreport set-grounding
+  strict|warn`, per repo with `tdreport repo <name> grounding strict|warn`, per run with
+  `--strict-grounding` / `--no-strict-grounding`; it appears in both settings screens.
+- Release notes carry the findings in a caution block above the `<details>` facts. A
+  **commit message never does** — `git commit -F` does not strip comments, so a note
+  appended there would land in history; it is raised as a `GroundingWarning` instead,
+  which the CLI shows as a `note:` line before the "Commit this?" prompt.
+
+_What it cannot catch:_ an invented **meaning** attached to a real identifier ("uni20C5,
+the Tamil currency sign"). No token comparison reaches that, and the attached facts remain
+the answer. The check narrows the gap; it does not close it.
+
 ## [0.2.1] - 2026-09-02
 
 ### Fixed
@@ -245,7 +281,8 @@ _Nothing yet._
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.1...v0.1.2

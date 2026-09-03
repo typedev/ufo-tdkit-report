@@ -41,6 +41,7 @@ def settings_snapshot(account: str | None = None) -> dict:
         "model": resolved.model,
         "language": resolved.language,
         "base_url": resolved.base_url,
+        "grounding": "strict" if resolved.strict_grounding else "warn",
         "key": settings.masked_key(name),
         "accounts": sorted(settings.accounts()),
         "repos": {
@@ -64,6 +65,7 @@ def render_settings(account: str | None = None, *, as_json: bool = False) -> str
         ("API key", snap["key"]),
         ("Language", snap["language"]),
         ("Base URL", snap["base_url"] or "(provider default)"),
+        ("Grounding", snap["grounding"]),
     ):
         lines.append(f"  {label:<12} {value}")
     accounts_line = ", ".join(snap["accounts"])
@@ -120,6 +122,10 @@ def repo_snapshot(name: str) -> dict:
         "model_source": source("model", account.model),
         "language": resolved.language,
         "language_source": source("language", account.language),
+        "grounding": "strict" if resolved.strict_grounding else "warn",
+        "grounding_source": (
+            "this repo" if "strict_grounding" in entry else f"account '{account.name}'"
+        ),
         "key": settings.masked_key(account.name),
         "needs_key": resolved.provider.requires_key,
     }
@@ -136,6 +142,7 @@ def render_repo_settings(name: str, *, as_json: bool = False) -> str:
         ("API key", snap["key"], f"account '{snap['account']}'"),
         ("Model", snap["model"] or "(not set)", snap["model_source"]),
         ("Language", snap["language"], snap["language_source"]),
+        ("Grounding", snap["grounding"], snap["grounding_source"]),
     ):
         lines.append(f"  {label:<10} {value:<28} from {origin}")
     return "\n".join(lines)
@@ -188,6 +195,32 @@ def _edit_repo_override(name: str, field: str) -> None:
     print(f"'{name}' {field}: {value or '(inherited)'}")
 
 
+def _edit_repo_grounding(name: str) -> None:
+    """Strict or warn for this repository only; empty hands it back to the account."""
+    entry = registry.entry(name)
+    if not entry:
+        return
+    snap = repo_snapshot(name)
+    print("\n  strict — refuse a narration whose tokens the facts do not support")
+    print("  warn   — keep it and note them")
+    print(f"  empty  — inherit from account '{snap['account']}'")
+    answer = _prompt(f"  Grounding for '{name}' [{snap['grounding']}]: ")
+    if answer is None:
+        return
+    if not answer:
+        registry.add(name, entry["path"], strict_grounding=None)
+        print(f"  '{name}' grounding: inherited")
+        return
+    from ufo_tdkit_report.cli import _parse_strictness
+
+    strict = _parse_strictness(answer)
+    if strict is None:
+        print(f"  expected 'strict' or 'warn', got '{answer}'")
+        return
+    registry.add(name, entry["path"], strict_grounding=strict)
+    print(f"  '{name}' grounding: {'strict' if strict else 'warn'}")
+
+
 def run_repo_menu(name: str) -> int:
     """The interactive screen for one repository."""
     while True:
@@ -204,7 +237,8 @@ def run_repo_menu(name: str) -> int:
         print(f"      API key    {snap['key']:<22} from account '{snap['account']}'")
         print(f"   2. Model      {(snap['model'] or '(not set)'):<22} from {snap['model_source']}")
         print(f"   3. Language   {snap['language']:<22} from {snap['language_source']}")
-        print("   4. Edit the account itself (affects every repo using it)")
+        print(f"   4. Grounding  {snap['grounding']:<22} from {snap['grounding_source']}")
+        print("   5. Edit the account itself (affects every repo using it)")
         print("   q. Quit")
         if snap["needs_key"] and snap["key"] == "not set":
             print(f"\n   ! account '{snap['account']}' has no key — option 1, or 4 to set one")
@@ -238,6 +272,8 @@ def run_repo_menu(name: str) -> int:
             elif answer == "3":
                 _edit_repo_override(name, "language")
             elif answer == "4":
+                _edit_repo_grounding(name)
+            elif answer == "5":
                 run_settings_menu(snap["account"])
             else:
                 print(f"no option '{answer}'")
@@ -463,6 +499,28 @@ def run_accounts_menu(highlight: str | None = None) -> int:
             print(f"error: {exc}")
 
 
+def _edit_grounding(account: str) -> None:
+    """Strict or warn, for this account.
+
+    It belongs to the model rather than to the run: a small local model earns a refusal,
+    a large hosted one usually only needs the note.
+    """
+    current = "strict" if settings.resolve_ai_settings(account=account).strict_grounding else "warn"
+    print("\n  warn   — note the tokens the facts do not support, keep the narration")
+    print("  strict — refuse it instead")
+    answer = _prompt(f"  Grounding for '{account}' [{current}]: ")
+    if answer is None:
+        return
+    from ufo_tdkit_report.cli import _parse_strictness
+
+    strict = _parse_strictness(answer or current)
+    if strict is None:
+        print(f"  expected 'strict' or 'warn', got '{answer}'")
+        return
+    settings.update_account(account, strict_grounding=strict)
+    print(f"  grounding: {'strict' if strict else 'warn'}")
+
+
 def _repos_screen() -> None:
     while True:
         entries = sorted(registry.load().items())
@@ -549,9 +607,11 @@ def run_settings_menu(account: str | None = None) -> int:
         print(f"   3. API key       {snap['key']}")
         print(f"   4. Language      {snap['language']}")
         print(f"   5. Base URL      {snap['base_url'] or '(provider default)'}")
-        print(f"   6. Accounts      {', '.join(snap['accounts'])}")
+        print(f"   6. Grounding     {snap['grounding']}"
+              f"{'  (refuse a narration the facts do not support)' if snap['grounding'] == 'strict' else ''}")
+        print(f"   7. Accounts      {', '.join(snap['accounts'])}")
         bound = sum(1 for e in snap["repos"].values() if e.get("account"))
-        print(f"   7. Repos         {len(snap['repos'])} registered, {bound} bound")
+        print(f"   8. Repos         {len(snap['repos'])} registered, {bound} bound")
         print("   q. Quit")
         answer = _prompt("\nNumber to change [q]: ")
         if answer is None or answer in ("", "q", "quit"):
@@ -562,13 +622,14 @@ def run_settings_menu(account: str | None = None) -> int:
             "3": _edit_key,
             "4": _edit_language,
             "5": _edit_base_url,
+            "6": _edit_grounding,
         }
         try:
             if answer in actions:
                 actions[answer](account)
-            elif answer == "6":
-                run_accounts_menu(account)
             elif answer == "7":
+                run_accounts_menu(account)
+            elif answer == "8":
                 _repos_screen()
             else:
                 print(f"no option '{answer}'")

@@ -5,7 +5,7 @@ which level owns what, there is nothing left to remember.
 
 | | **Account** | **Repository** |
 | --- | --- | --- |
-| owns | provider, **API key**, default model, default language, base URL | which account to use, and a model / language override for this repo only |
+| owns | provider, **API key**, default model, default language, base URL, grounding strictness | which account to use, and a model / language / grounding override for this repo only |
 | how many | one (`default`) or several — personal, corporate, local | one entry per registered repo |
 | has a key | yes, exactly one | never |
 
@@ -50,6 +50,7 @@ library callers too, not just the CLI.
 | Model | `tdreport set-model` | account |
 | Prose language | `tdreport set-lang Spanish` | account |
 | Endpoint (local model, custom server) | `tdreport set-url http://localhost:11434/v1` | account |
+| Refuse a narration the facts do not support | `tdreport set-grounding strict` | account |
 
 ### Change it for one repo
 
@@ -58,6 +59,7 @@ library callers too, not just the CLI.
 | A different model on the same key | `tdreport repo MyFont model claude-haiku-4-5` | repo |
 | A different language | `tdreport repo MyFont language German` | repo |
 | Hand a field back to the account | `tdreport repo MyFont clear model` (or `clear` for all) | repo |
+| Strict or lenient grounding | `tdreport repo MyFont grounding strict` | repo |
 
 ### A different key or provider for some repos
 
@@ -115,13 +117,15 @@ Settings — repo 'AcmeSans'
       API key    set (…9999)            from account 'work'
    2. Model      gpt-5-mini             from this repo
    3. Language   German                 from account 'work'
-   4. Edit the account itself (affects every repo using it)
+   4. Grounding  strict                 from account 'work'
+   5. Edit the account itself (affects every repo using it)
    q. Quit
 ```
 
 For a repo you do not pick a provider — you pick an **account**, and option 1 lists them
-with what each one actually brings. Options 2 and 3 set overrides for this repo only; an
-empty answer clears one. Option 4 jumps to the account, which affects every repo using it.
+with what each one actually brings. Options 2, 3 and 4 set overrides for this repo only;
+an empty answer clears one. Option 5 jumps to the account, which affects every repo using
+it.
 
 `tdreport repo <name>` prints the same resolution without a menu, for scripts.
 
@@ -143,7 +147,7 @@ Keys are never read from the process environment, a repo `.env`, or the cwd, so 
 ## Rule of thumb
 
 - **Account** — provider and key. They always travel together.
-- **Repo** — model and language, when this one repo needs its own.
+- **Repo** — model, language and grounding strictness, when this one repo needs its own.
 
 A second account is needed only when you need a **different key or a different provider**.
 Different models on the same key is a repo override, not a new account.
@@ -165,6 +169,17 @@ fallback list does not mean the provider only has two models — it means nobody
 completion budget on its private reasoning *before* writing anything, so a cap sized for
 the prose can be consumed entirely. The default is 8192; raise it for one run with
 `--ai-max-tokens 16000`, or pick a non-reasoning model.
+
+**`grounding check failed: … tokens do not appear in the facts`.** The narration named
+identifiers the facts do not contain, and this account or repo is set to `strict`. Read
+the listed tokens: a near-miss like `guillemotleft` for `guillemetleft` is the model
+inventing. Re-run, or relax with `tdreport set-grounding warn` (the default), which keeps
+the narration and notes the tokens instead.
+
+**`the model did not mark up any identifiers`.** The prompt asks for glyph names,
+codepoints and tags in backticks, so they can be told apart from prose — `four` and `one`
+are glyph names as well as words. This model ignored that, so glyph-name checking was
+skipped for that narration. The other checks still ran. Common on small local models.
 
 **`unknown repo 'x'`.** A bare name that was never registered is an error rather than a
 guess. Register it by addressing it once by path (`tdreport ~/fonts/x`), or check
