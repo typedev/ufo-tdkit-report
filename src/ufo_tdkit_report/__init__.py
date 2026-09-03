@@ -7,6 +7,13 @@ catching outline redraws and feature-rule changes that a binary font diff misses
     from ufo_tdkit_report import extract_facts
     report = extract_facts(repo, "HEAD")
     print(report.render_text())
+
+Everything a consumer needs is re-exported here, and that deliberately includes the
+warning categories a public call can *raise* (``GroundingWarning``, ``UnboundRepoWarning``)
+— not only the functions it can call. A consumer that must reach into ``settings`` or
+``narrator`` to catch what ``narrate`` or ``resolve_ai_settings`` throws is pinned to
+this package's internal layout, and an ordinary refactor here would break it without
+looking like an API change from the inside. The module-level names stay valid.
 """
 
 from importlib.metadata import PackageNotFoundError
@@ -32,6 +39,7 @@ from ufo_tdkit_report.narrator import (
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
     KNOWN_MODELS,
+    GroundingWarning,
     NarratorError,
     list_models,
     narrate,
@@ -45,7 +53,7 @@ from ufo_tdkit_report.narrator import (
 )
 from ufo_tdkit_report.providers import PROVIDERS, Provider
 from ufo_tdkit_report.service import commit_facts, extract_facts, extract_working_facts
-from ufo_tdkit_report.settings import Account, AiSettings
+from ufo_tdkit_report.settings import Account, AiSettings, UnboundRepoWarning
 
 __all__ = [
     "__version__",
@@ -71,6 +79,8 @@ __all__ = [
     "DEFAULT_LANGUAGE",
     "KNOWN_MODELS",
     "NarratorError",
+    "GroundingWarning",
+    "UnboundRepoWarning",
     "SourceReport",
     "RangeReport",
     "FoldedFact",

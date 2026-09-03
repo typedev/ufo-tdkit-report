@@ -509,6 +509,22 @@ caller restating them. When a repository is named but not registered — meaning
 settings came from the default account — a `UnboundRepoWarning` says so rather than
 letting it pass unnoticed.
 
+Both warning categories a public call can raise are exported from the package root
+alongside the calls themselves, so catching them never means importing from an internal
+module:
+
+```python
+import warnings
+from ufo_tdkit_report import GroundingWarning, UnboundRepoWarning, narrate
+
+with warnings.catch_warnings(record=True) as notes:
+    warnings.simplefilter("always", (UnboundRepoWarning, GroundingWarning))
+    prose = narrate(report)                      # route them into your own report…
+```
+
+`ufo_tdkit_report.settings.UnboundRepoWarning` and `ufo_tdkit_report.narrator.
+GroundingWarning` remain valid names for the same classes.
+
 Build-profile *consequence* semantics (e.g. "ttfautohint off → no TT hinting") are
 build-tool-specific: a consumer that owns an option schema injects it via
 `fold_facts(..., schema=...)`. Without one, profile changes render as a bare option diff.

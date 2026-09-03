@@ -7,7 +7,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **`GroundingWarning` and `UnboundRepoWarning` are exported from the package root.**
+  The root already carried `narrate`, `resolve_ai_settings` and `NarratorError`, but not
+  the two warning categories those same calls raise — so a consumer wanting to catch one
+  had to import from `narrator` or `settings` and was pinned to this package's internal
+  layout. Moving either class would then have broken that consumer while looking like an
+  ordinary refactor from in here: the promise to announce breaking API changes did not
+  cover the surface people were actually importing. The module-level names stay valid
+  aliases for the same classes. Reported by TDKit, whose release path imports both.
 
 ## [0.4.2] - 2026-09-03
 

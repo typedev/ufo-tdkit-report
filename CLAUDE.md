@@ -44,7 +44,13 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
 - **`service.py`** is the orchestration seam. `extract_facts` (committed range),
   `extract_working_facts` (uncommitted tree), and `commit_facts` (one commit) are the
   public API re-exported from `__init__.py`. Nothing below `service` prints; rendering is
-  separate.
+  separate. **What a public call can *raise* belongs in `__init__.__all__` too**, not just
+  what it can call — `NarratorError`, `GroundingWarning`, `UnboundRepoWarning`. An
+  exception reachable only via `narrator`/`settings` pins the consumer to the internal
+  layout, so moving that class reads as an ordinary refactor here and breaks them there;
+  the announce-on-break promise then covers a smaller surface than the one people import.
+  Re-export, never redefine: the module-level name and the root name must be the same
+  object, or `except` catches one and not the other.
 - **`gitsource.py`** is the *only* module that shells out. `git -C <repo>` everywhere (no
   reliance on process cwd). `runner` is injectable (`subprocess.run` by default) so the
   layer is unit-tested with canned stdout; blobs are batch-fetched via `git cat-file
