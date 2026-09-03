@@ -7,7 +7,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.4.0] - 2026-09-03
+
 ### Added
+- **`TDREPORT_CONFIG_DIR`** relocates the whole config directory on any platform — a
+  portable install, a test harness, a second profile. It chooses the *directory*; the API
+  key still comes only from `.env` inside it or from an explicit argument, never from the
+  environment.
 - **CI** — `pytest` and `ruff` on every push and pull request, across Python 3.10 (the
   floor from `requires-python`) and 3.13, on Linux **and macOS**. macOS is not padding:
   `config_dir()` branches per platform and font work is heavily macOS, so a Linux-only
@@ -357,7 +365,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.1...v0.3.0
