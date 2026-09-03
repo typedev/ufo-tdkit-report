@@ -241,7 +241,11 @@ def run_repo_menu(name: str) -> int:
         print("   5. Edit the account itself (affects every repo using it)")
         print("   q. Quit")
         if snap["needs_key"] and snap["key"] == "not set":
-            print(f"\n   ! account '{snap['account']}' has no key — option 1, or 4 to set one")
+            # The key belongs to the account, so it is set through option 5 (the account
+            # screen) — option 1 only picks a *different* account, which may already have
+            # one. This line named option 4 until the Grounding row pushed everything down.
+            print(f"\n   ! account '{snap['account']}' has no key — option 5 to set one, "
+                  f"or option 1 to use an account that has one")
         if snap["overrides"].get("provider"):
             print("\n   ! this repo overrides the provider but uses the account's key —")
             print("     that only works if the key is valid for both")

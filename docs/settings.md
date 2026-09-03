@@ -26,8 +26,8 @@ Twenty client repositories can point at one account, so its key is stored exactl
 Resolution order, top down — the first thing found wins. This one chain applies to
 library callers too, not just the CLI.
 
-1. **A flag on the run** — `--ai-model`, `--ai-lang`, `--ai-provider`, `--ai-account`
-   (in the library, `narrate(model=…)`)
+1. **A flag on the run** — `--ai-model`, `--ai-lang`, `--ai-provider`, `--ai-account`,
+   `--strict-grounding` / `--no-strict-grounding` (in the library, `narrate(model=…)`)
 2. **The repo's own override** — `tdreport repo <name> …`
 3. **The account that repo is bound to** — `tdreport bind`
 4. **The default account** — `tdreport account use <name>`
@@ -131,8 +131,9 @@ it.
 
 ## Where it lives
 
-Three files in `~/.config/ufo-tdkit-report/` (`~/Library/Application Support/…` on macOS,
-`%APPDATA%\…` on Windows). Only the first holds secrets.
+Three files and a drafts directory in `~/.config/ufo-tdkit-report/`
+(`~/Library/Application Support/…` on macOS, `%APPDATA%\…` on Windows). Only the first
+holds secrets.
 
 | File | Contents |
 | --- | --- |

@@ -7,7 +7,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- **The repo settings screen pointed at the wrong option for a missing key.** With no key
+  on the account it printed `option 1, or 4 to set one`, but option 4 has been Grounding
+  since that row was added — the key is set through option 5, the account screen. Anyone
+  following the hint landed on the wrong setting. The line now names 5, and a test pins
+  the number against the menu it describes rather than only its wording.
+
+### Changed
+- Documentation caught up with the code in three places it had drifted: both settings
+  screens in the README still showed the pre-Grounding numbering (the same off-by-one the
+  hint above had), the README's prose provider lists had not been extended with the
+  providers added in 0.4.2 while its table had, and the docs disagreed with each other on
+  which settings can live on a repository. `docs/settings.md` had been right throughout.
 
 ## [0.4.3] - 2026-09-03
 

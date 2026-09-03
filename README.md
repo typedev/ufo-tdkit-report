@@ -6,7 +6,7 @@ Deterministic, git-centric source-change extractor and narrator for UFO / design
 font projects. It diffs the **sources** semantically (formatting-agnostic) and compresses
 the changes into a few facts — catching outline redraws and feature-rule changes that a
 binary font diff misses. Optionally drafts a grounded commit message or release notes —
-through Claude, GPT, Grok, DeepSeek, Qwen, or a local model.
+through Claude, GPT, Gemini, Grok, Mistral, DeepSeek, Qwen, Kimi, GLM, or a local model.
 
 Standalone and build-tool-agnostic: it needs **git**, not any particular font compiler.
 
@@ -22,8 +22,9 @@ Standalone and build-tool-agnostic: it needs **git**, not any particular font co
 - **Grounded AI narration** (opt-in) — `--ai-note` turns the deterministic facts into
   prose, attaching the facts verbatim for verification. See
   [AI narration](#ai-narration-opt-in).
-- **Your choice of AI provider** — Claude, GPT, Grok, DeepSeek, Qwen, OpenRouter, or a
-  local model (Ollama, LM Studio, vLLM, llama.cpp) via any OpenAI-compatible endpoint.
+- **Your choice of AI provider** — Claude, GPT, Gemini, Grok, Mistral, Groq, DeepSeek,
+  Qwen, Kimi, GLM, OpenRouter, or a local model (Ollama, LM Studio, vLLM, llama.cpp) via
+  any OpenAI-compatible endpoint. See the [table](#providers) for the full list.
 - **Per-repo AI accounts** — a corporate repo can use a different provider and key from
   your personal ones, with the key stored once and shared by name, never per repo.
 - **Prose in your language** — `tdreport set-lang Spanish` narrates in Spanish while the
@@ -88,7 +89,7 @@ tdreport --ai-note             # narrated by a grounded AI
 tdreport commit                # commit the working tree with the drafted message
 
 # One-time setup for --ai-note
-tdreport set-provider          # pick the provider (Claude, GPT, Grok, DeepSeek, Qwen, local…)
+tdreport set-provider          # pick the provider (Claude, GPT, Gemini, Grok, local…)
 tdreport set-key sk-...        # store that provider's API key, owner-only
 tdreport set-model             # pick the narration model from a menu
 tdreport set-lang Spanish      # optional: narrate in another language
@@ -199,7 +200,7 @@ Set `TDREPORT_CONFIG_DIR` to put all of it somewhere else (a portable install, a
 harness). That chooses the directory only — the API key still comes from `.env` inside
 it, or from an explicit argument, and never from the environment.
 
-Three files live there, and only the first one holds secrets:
+Three files and a drafts directory live there, and only the first holds secrets:
 
 | file            | contents                            | permissions |
 | --------------- | ----------------------------------- | ----------- |
@@ -216,8 +217,8 @@ Keys never appear in `settings.json` or `repos.json`, and **nothing tdreport-rel
 ever written inside your font repository** — not a config file, which would be committed
 and shared, and not the drafted commit message either. An earlier version kept that draft
 in `<repo>/.tdreport/` and appended a line to your `.gitignore` to hide it; if you still
-have that directory, tdreport says so and you can delete both. `settings.json` and `repos.json` are safe to back up or
-keep in dotfiles.
+have that directory, tdreport says so and you can delete both. `settings.json` and
+`repos.json` are safe to back up or keep in dotfiles.
 
 The key lives in that one file and nowhere else: the tool deliberately does **not** read
 `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` from the environment, nor a `.env` in the repo or
@@ -277,9 +278,9 @@ deterministic facts are attached verbatim to every narration precisely so you ca
 ### The settings screen
 
 `tdreport settings <repo>` scopes the screen to one repository. Two settings live on the
-**account** (the provider and its key — a key is a key *for* a provider) and two can live
-on the **repo** (model, language); looking at a repo that split is invisible, so this
-screen shows every value **with where it comes from**:
+**account** (the provider and its key — a key is a key *for* a provider) and three can
+live on the **repo** (model, language, grounding strictness); looking at a repo that split
+is invisible, so this screen shows every value **with where it comes from**:
 
 ```
 Settings — repo 'AcmeSans'
@@ -290,7 +291,8 @@ Settings — repo 'AcmeSans'
       API key    set (…9999)            from account 'work'
    2. Model      gpt-5-mini             from this repo
    3. Language   German                 from account 'work'
-   4. Edit the account itself (affects every repo using it)
+   4. Grounding  strict                 from account 'work'
+   5. Edit the account itself (affects every repo using it)
    q. Quit
 ```
 
@@ -304,12 +306,13 @@ Accounts — an account carries the provider AND the key for it:
    2. work             openai       key set (…9999)  <- current
 ```
 
-Option 2 and 3 set overrides for this repo only (an empty answer clears one, handing the
-field back to the account). Option 4 jumps into the account's own screen, which affects
-every repo using it.
+Options 2, 3 and 4 set overrides for this repo only (an empty answer clears one, handing
+the field back to the account). Option 5 jumps into the account's own screen, which
+affects every repo using it.
 
-`tdreport settings` with no repo puts all of it on one screen — provider, model, key, language, base
-URL, accounts, and the registered repos with their bindings:
+`tdreport settings` with no repo puts all of it on one screen — provider, model, key,
+language, base URL, grounding strictness, accounts, and the registered repos with their
+bindings:
 
 ```
 Settings — account 'default'
@@ -319,8 +322,9 @@ Settings — account 'default'
    3. API key       set (…4f2a)
    4. Language      German
    5. Base URL      https://api.deepseek.com/v1
-   6. Accounts      default, work
-   7. Repos         3 registered, 2 bound
+   6. Grounding     warn
+   7. Accounts      default, work
+   8. Repos         3 registered, 2 bound
    q. Quit
 ```
 
@@ -431,7 +435,8 @@ not just the CLI:
 
 1. an explicit argument — `--ai-model` / `--ai-provider` / `--ai-lang` / `--ai-account`
    (in the library, `narrate(model=..., provider=...)`)
-2. the repository's own entry (`tdreport bind`, or a per-repo `model`/`language`)
+2. the repository's own entry (`tdreport bind`, or a per-repo
+   `model`/`language`/`grounding`)
 3. the account that entry names
 4. the default account (`tdreport account use`)
 5. the built-in default — provider `anthropic`, model **`claude-opus-5`**, language English

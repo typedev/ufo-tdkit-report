@@ -352,6 +352,11 @@ def test_repo_menu_flags_a_missing_key_and_reaches_the_account_screen(monkeypatc
     out = capsys.readouterr().out
     assert "has no key" in out
     assert "Settings — account 'work'" in out
+    # The hint must name the option that actually sets a key. It said "4" until the
+    # Grounding row was inserted above it, sending anyone who followed it to the wrong
+    # setting — so pin the number against the menu it describes, not just its wording.
+    assert "option 5 to set one" in out
+    assert "   5. Edit the account itself" in out
 
 
 if __name__ == "__main__":

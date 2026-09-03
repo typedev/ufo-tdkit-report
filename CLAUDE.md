@@ -17,7 +17,7 @@ Groq, DeepSeek, Qwen, Kimi, GLM, or a local model — all opt-in.
 The project uses `uv` (there is a `uv.lock` and `.venv`).
 
 ```bash
-uv run pytest -q                              # full test suite (~190 tests, ~3s)
+uv run pytest -q                              # full test suite (~230 tests, ~3s)
 uv run pytest tests/test_report_rollup.py     # one test file
 uv run pytest -k outline_redraw               # one test by name substring
 uv run ruff check .                           # lint (config in pyproject.toml)
@@ -257,7 +257,10 @@ on GitHub" while every commit is in fact pushed.
 Tests pair fast unit tests (an injected fake `runner`/`transport`, canned stdout) with
 integration tests that build a real temp git repo via `subprocess` + `tmp_path`. When
 touching `gitsource.py` or `narrator.py`, prefer the injection seams over real network/git
-in unit tests. One test file per module (`tests/test_report_<module>.py`).
+in unit tests. One test file per module (`tests/test_report_<module>.py`), plus a
+few that follow a *property* rather than a module — `test_report_constatation.py` (T3),
+`test_report_version.py`, `test_report_public_api.py` — because the thing they protect
+would otherwise have no owner.
 
 The interactive screens (`settings_ui.py`) are tested the same way: `monkeypatch` on
 `builtins.input` with a fixed script that raises `EOFError` when exhausted, so a menu that
