@@ -4,8 +4,9 @@ There are not N integrations here, there is a **table**. Every provider worth
 supporting speaks one of exactly two HTTP dialects:
 
 - ``anthropic`` — the Messages API (``/messages``, ``x-api-key``, top-level ``system``);
-- ``openai``    — the OpenAI-compatible ``/chat/completions`` that xAI, DeepSeek,
-  DashScope (Qwen), Ollama, LM Studio, vLLM and OpenRouter all implement.
+- ``openai``    — the OpenAI-compatible ``/chat/completions`` that Google (through its
+  ``/v1beta/openai`` compatibility layer), xAI, Mistral, Groq, DeepSeek, DashScope
+  (Qwen), Moonshot, Z.ai, Ollama, LM Studio, vLLM and OpenRouter all implement.
 
 So adding a provider is one row, and running against a local model is a row with a
 ``localhost`` base URL and ``requires_key=False``. Everything stays on ``urllib``:
@@ -99,6 +100,48 @@ PROVIDERS: dict[str, Provider] = {
             legacy_key_var="XAI_API_KEY",
         ),
         Provider(
+            name="gemini",
+            label="Google (Gemini)",
+            dialect="openai",
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            default_model="",
+            known_models=(
+                ("gemini-3.8-flash", "Gemini 3.8 Flash"),
+                ("gemini-3.7-flash", "Gemini 3.7 Flash"),
+                ("gemini-3.1-pro-preview", "Gemini 3.1 Pro (preview)"),
+                ("gemini-2.5-pro", "Gemini 2.5 Pro"),
+            ),
+            legacy_key_var="GEMINI_API_KEY",
+            notes="Google's OpenAI-compatible layer; the native generateContent API is not used.",
+        ),
+        Provider(
+            name="mistral",
+            label="Mistral AI",
+            dialect="openai",
+            base_url="https://api.mistral.ai/v1",
+            default_model="",
+            known_models=(
+                ("mistral-large-latest", "Mistral Large"),
+                ("mistral-medium-latest", "Mistral Medium"),
+                ("mistral-small-latest", "Mistral Small"),
+                ("codestral-latest", "Codestral"),
+            ),
+            legacy_key_var="MISTRAL_API_KEY",
+        ),
+        Provider(
+            name="groq",
+            label="Groq (fast open models)",
+            dialect="openai",
+            base_url="https://api.groq.com/openai/v1",
+            default_model="",
+            known_models=(
+                ("openai/gpt-oss-120b", "GPT-OSS 120B"),
+                ("openai/gpt-oss-20b", "GPT-OSS 20B"),
+                ("llama-3.3-70b-versatile", "Llama 3.3 70B"),
+            ),
+            legacy_key_var="GROQ_API_KEY",
+        ),
+        Provider(
             name="deepseek",
             label="DeepSeek",
             dialect="openai",
@@ -116,6 +159,30 @@ PROVIDERS: dict[str, Provider] = {
             known_models=(("qwen-max", "Qwen Max"), ("qwen-plus", "Qwen Plus"), ("qwen-turbo", "Qwen Turbo")),
             legacy_key_var="DASHSCOPE_API_KEY",
             notes="Mainland-China endpoint: set a base URL of https://dashscope.aliyuncs.com/compatible-mode/v1",
+        ),
+        Provider(
+            name="moonshot",
+            label="Moonshot (Kimi)",
+            dialect="openai",
+            base_url="https://api.moonshot.ai/v1",
+            default_model="",
+            known_models=(
+                ("kimi-k3", "Kimi K3"),
+                ("kimi-k2.7-code", "Kimi K2.7 Code"),
+                ("kimi-k2.6", "Kimi K2.6"),
+            ),
+            legacy_key_var="MOONSHOT_API_KEY",
+            notes="Mainland-China endpoint: set a base URL of https://api.moonshot.cn/v1",
+        ),
+        Provider(
+            name="zai",
+            label="Z.ai (GLM)",
+            dialect="openai",
+            base_url="https://api.z.ai/api/paas/v4",
+            default_model="",
+            known_models=(("glm-5.3", "GLM-5.3"), ("glm-5.2", "GLM-5.2"), ("glm-4.7", "GLM-4.7")),
+            legacy_key_var="ZAI_API_KEY",
+            notes="Coding-plan endpoint: set a base URL of https://api.z.ai/api/coding/paas/v4",
         ),
         Provider(
             name="openrouter",

@@ -7,7 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **Five more AI providers: `gemini`, `mistral`, `groq`, `moonshot` (Kimi) and `zai`
+  (GLM).** Google's Gemini reaches the narrator through its OpenAI-compatibility layer
+  at `/v1beta/openai`, so it is a table row like the rest — no new dialect, no vendor
+  SDK, still no third-party runtime dependency. Each row carries the vendor's regional
+  or coding-plan endpoint as a note where one exists (Moonshot's `.cn` host, Z.ai's
+  coding-plan host), reachable with `tdreport set-url`.
+
+### Changed
+- `--ai-provider --help` now spells its provider list from the table instead of a
+  hand-written string, which had already gone stale once.
 
 ## [0.4.1] - 2026-09-03
 

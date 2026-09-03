@@ -9,8 +9,8 @@ extractor for UFO / designspace font projects. It diffs font **sources** semanti
 (formatting-agnostic) and compresses the changes into a few facts, catching outline
 redraws and feature-rule changes a binary font diff misses. It shells out to `git` but
 depends on no particular font compiler. Optionally it drafts a grounded commit message or
-release notes through any of several AI providers — Claude, GPT, Grok, DeepSeek, Qwen,
-or a local model — all opt-in.
+release notes through any of several AI providers — Claude, GPT, Gemini, Grok, Mistral,
+Groq, DeepSeek, Qwen, Kimi, GLM, or a local model — all opt-in.
 
 ## Commands
 

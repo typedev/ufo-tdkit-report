@@ -270,10 +270,13 @@ Examples:
         "--ai-model", default=None,
         help=f"model for --ai-note, overriding `tdreport set-model` (built-in default: {DEFAULT_MODEL})",
     )
+    from ufo_tdkit_report.providers import PROVIDERS
+
     parser.add_argument(
         "--ai-provider", default=None,
-        help="provider for --ai-note, overriding the account's (anthropic, openai, xai, deepseek, "
-             "qwen, openrouter, ollama, lmstudio, custom)",
+        # Spelled from the table, not by hand: a hardcoded list here goes stale the next
+        # time a row is added, and this help text is where people look for the names.
+        help=f"provider for --ai-note, overriding the account's ({', '.join(PROVIDERS)})",
     )
     parser.add_argument(
         "--ai-lang", default=None,

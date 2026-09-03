@@ -240,19 +240,27 @@ Running `tdreport set-key` with no argument prompts for the key without echoing 
 | ------------ | ----------------------------------------------------- | ---------- |
 | `anthropic`  | Claude — the default                                  | yes        |
 | `openai`     | GPT (the models behind Codex)                         | yes        |
+| `gemini`     | Google Gemini                                         | yes        |
 | `xai`        | Grok                                                  | yes        |
+| `mistral`    | Mistral AI (incl. Codestral)                          | yes        |
+| `groq`       | Groq — open models, fast inference                    | yes        |
 | `deepseek`   | DeepSeek                                              | yes        |
 | `qwen`       | Qwen via Alibaba DashScope                            | yes        |
+| `moonshot`   | Moonshot — Kimi                                       | yes        |
+| `zai`        | Z.ai — GLM                                            | yes        |
 | `openrouter` | many vendors behind one key                           | yes        |
 | `ollama`     | local, `http://localhost:11434/v1`                    | no         |
 | `lmstudio`   | local, `http://localhost:1234/v1`                     | no         |
 | `custom`     | any OpenAI-compatible server (vLLM, llama.cpp, gateway) | optional |
 
 Use `tdreport set-url <base-url>` for the `custom` provider, a local server on a
-non-default host or port, or the mainland-China DashScope endpoint.
+non-default host or port, or a vendor's regional endpoint — mainland-China DashScope
+and Moonshot, or Z.ai's coding-plan host. `tdreport settings` prints the alternative
+alongside the provider that has one.
 
-Everything except Anthropic speaks the OpenAI-compatible `/chat/completions` API, so a
-provider is a table row, not an integration — and a local model is just a base URL. No
+Everything except Anthropic speaks the OpenAI-compatible `/chat/completions` API — Google
+included, through its `/v1beta/openai` compatibility layer — so a provider is a table row,
+not an integration, and a local model is just a base URL. No
 vendor SDK is used; the call is a plain `urllib` POST, and the tool has no third-party
 runtime dependency for this.
 

@@ -21,6 +21,7 @@ from ufo_tdkit_report.providers import (
 ANTHROPIC = PROVIDERS["anthropic"]
 OPENAI = PROVIDERS["openai"]
 DEEPSEEK = PROVIDERS["deepseek"]
+GEMINI = PROVIDERS["gemini"]
 OLLAMA = PROVIDERS["ollama"]
 
 
@@ -32,6 +33,38 @@ def test_every_provider_row_is_usable():
         # A keyless provider is a local one; it must point somewhere local or be custom.
         if not provider.requires_key and provider.base_url:
             assert "localhost" in provider.base_url
+
+
+def test_every_keyed_provider_has_a_reachable_https_base_url():
+    """A row whose base URL is wrong is indistinguishable from a dead key at runtime.
+
+    Nothing here calls the network; this only asserts the shape a row must have to be
+    usable at all, so a typo in a new row fails at import time rather than on someone's
+    first paid call.
+    """
+    for provider in PROVIDERS.values():
+        if provider.name == "custom":  # the one row that is deliberately blank
+            continue
+        assert provider.base_url.startswith(("https://", "http://localhost"))
+        assert not provider.base_url.endswith("/")  # `_base` rstrips, so keep it canonical
+        if provider.requires_key:
+            assert provider.legacy_key_var
+
+
+def test_gemini_rides_the_openai_dialect_on_a_nested_base_path():
+    """Google's compatibility layer lives under /v1beta/openai, not at the host root.
+
+    It is the only row whose base URL has a path segment beyond the version, so the
+    URL join is worth pinning: a lost `/openai` is a 404 that reads like a bad key.
+    """
+    assert GEMINI.dialect == "openai"
+    assert messages_url(GEMINI) == (
+        "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    )
+    assert models_url(GEMINI) == "https://generativelanguage.googleapis.com/v1beta/openai/models"
+    assert build_headers(GEMINI, "k")["Authorization"] == "Bearer k"
+    # Gemini is not OpenAI: it takes the ordinary `max_tokens`, not the newer field.
+    assert build_payload(GEMINI, model="m", system="s", user="u", max_tokens=7)["max_tokens"] == 7
 
 
 def test_get_provider_unknown_names_the_valid_ones():
