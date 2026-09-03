@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.4.1] - 2026-09-03
+
 ### Fixed
 - **Redirected output no longer dies on Windows.** Printing to a real Windows console is
   fine — Python writes it as UTF-16 through `WriteConsoleW` whatever the code page is.
@@ -386,7 +390,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.0...v0.3.1
