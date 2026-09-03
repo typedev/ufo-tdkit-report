@@ -218,7 +218,16 @@ uv run --extra dev pytest -q && uv run ruff check .
 git commit -am "chore(release): X.Y.Z"
 git tag -a vX.Y.Z -m "vX.Y.Z"
 git push origin main --follow-tags
+
+# 3. publish the GitHub Release — a pushed tag is NOT one, and the repo page keeps
+#    showing the previous version as "Latest" until this runs. Body = that version's
+#    CHANGELOG section.
+gh release create vX.Y.Z --title vX.Y.Z --notes-file <that section> --verify-tag --latest
 ```
+
+A consumer pinning by tag (TDKit does) only needs the tag, so the missing Release is
+invisible from the code side and easy to forget — the symptom is "I do not see the update
+on GitHub" while every commit is in fact pushed.
 
 ## Testing conventions
 
