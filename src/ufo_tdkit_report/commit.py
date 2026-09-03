@@ -1,22 +1,36 @@
 """Commit assistant — document uncommitted changes and commit.
 
 `tdreport` (or `tdreport <repo>`) inspects the working tree vs HEAD, prints a drafted
-commit message and writes it to an editable file in the project; `tdreport <repo> commit`
-commits with that file (generating it first if absent). Deterministic by default;
-`--ai-note` runs the grounded commit narrator. The repo is the cwd, a registered name,
-or an explicit path.
+commit message and writes it to an editable file; `tdreport <repo> commit` commits with
+that file (generating it first if absent). Deterministic by default; `--ai-note` runs the
+grounded commit narrator. The repo is the cwd, a registered name, or an explicit path.
+
+The draft lives in the tool's own config directory, NOT inside the font repository. It
+used to sit in `<repo>/.tdreport/`, which meant appending a line to the repository's
+`.gitignore` — a silent edit to a tracked file in someone else's project, to protect
+against a problem the tool itself had created. Nothing tdreport-related is written inside
+a repository now; the same rule the accounts and bindings already follow.
+
+Not a temp directory either: between drafting and committing an hour can pass, and
+`/tmp` is cleared on reboot. Re-generating a deterministic draft is free, but an
+`--ai-note` draft cost a paid model call.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 
+from ufo_tdkit_report.config import config_dir
 from ufo_tdkit_report.render import render_commit_message
 from ufo_tdkit_report.service import extract_working_facts
 
-REPORT_RELPATH = os.path.join(".tdreport", "commit-message.md")
+DRAFT_NAME = "commit-message.md"
+# Where the draft used to live, inside the repository. Only looked for now, to tell the
+# owner it can go.
+LEGACY_RELDIR = ".tdreport"
 
 
 def _git(repo: str, *args: str, input_text: str | None = None):
@@ -56,23 +70,38 @@ def resolve_repo(target: str | None = None) -> str:
     return root
 
 
+def _draft_key(repo: str) -> str:
+    """A readable, collision-free directory name for one repository.
+
+    The registered name when there is one; otherwise the basename plus a short digest of
+    the absolute path, so two repos called `Sans` in different places never share a draft.
+    """
+    from ufo_tdkit_report import registry
+
+    name = registry.name_for_path(repo)
+    if name:
+        return re.sub(r"[^A-Za-z0-9._-]", "_", name)
+    import hashlib
+
+    resolved = str(Path(repo).expanduser().resolve())
+    digest = hashlib.sha256(resolved.encode("utf-8")).hexdigest()[:8]
+    base = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(resolved)) or "repo"
+    return f"{base}-{digest}"
+
+
 def report_path(repo: str) -> Path:
-    return Path(repo) / REPORT_RELPATH
+    """Where this repository's draft commit message lives — in the config dir, not the repo."""
+    return config_dir() / "drafts" / _draft_key(repo) / DRAFT_NAME
 
 
-def _ensure_gitignored(repo: str) -> None:
-    """Make sure `.tdreport/` is gitignored so the draft never gets committed as a file."""
-    gitignore = Path(repo) / ".gitignore"
-    entry = ".tdreport/"
-    try:
-        existing = gitignore.read_text(encoding="utf-8") if gitignore.is_file() else ""
-        if entry not in existing.split():
-            with gitignore.open("a", encoding="utf-8") as fh:
-                if existing and not existing.endswith("\n"):
-                    fh.write("\n")
-                fh.write(entry + "\n")
-    except OSError:
-        pass
+def legacy_draft_dir(repo: str) -> Path | None:
+    """The old in-repo `.tdreport/` if this repository still has one, else None.
+
+    Returned rather than deleted: it is the owner's repository, and their `.gitignore`
+    still carries the line an older version added. The CLI says so; removing it is theirs.
+    """
+    path = Path(repo) / LEGACY_RELDIR
+    return path if path.is_dir() else None
 
 
 def inspect(
@@ -109,7 +138,6 @@ def inspect(
     else:
         text = render_commit_message(report)
 
-    _ensure_gitignored(repo)
     path = report_path(repo)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
@@ -138,7 +166,6 @@ def commit(
     if not (status.stdout or "").strip():
         return 0, "nothing to commit — working tree is clean"
 
-    _ensure_gitignored(repo)
     path = report_path(repo)
     if not path.is_file():
         inspect(target, ai=ai, model=model, provider=provider, language=language,

@@ -182,10 +182,13 @@ Three files live there, and only the first one holds secrets:
 | `.env`          | API keys, one per account           | `0600`      |
 | `settings.json` | accounts: provider, model, language | —           |
 | `repos.json`    | registered repos and their bindings | —           |
+| `drafts/`       | commit-message drafts, deleted once committed | — |
 
 Keys never appear in `settings.json` or `repos.json`, and **nothing tdreport-related is
-ever written inside your font repository** — a config file there would be committed and
-shared, which is how keys leak. `settings.json` and `repos.json` are safe to back up or
+ever written inside your font repository** — not a config file, which would be committed
+and shared, and not the drafted commit message either. An earlier version kept that draft
+in `<repo>/.tdreport/` and appended a line to your `.gitignore` to hide it; if you still
+have that directory, tdreport says so and you can delete both. `settings.json` and `repos.json` are safe to back up or
 keep in dotfiles.
 
 The key lives in that one file and nowhere else: the tool deliberately does **not** read

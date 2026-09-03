@@ -714,8 +714,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # --- working-tree commit assistant (repo selector: cwd / name / path) ---
-    from ufo_tdkit_report.commit import REPORT_RELPATH, inspect
     from ufo_tdkit_report.commit import commit as do_commit
+    from ufo_tdkit_report.commit import inspect, legacy_draft_dir, report_path
 
     # `tdreport commit` (cwd) or `tdreport <repo> commit`
     if args.target == "commit" and not args.rest:
@@ -748,7 +748,13 @@ def main(argv: list[str] | None = None) -> int:
     print(text)
     if not has_changes:
         return 0
-    print(f"--- drafted in {os.path.join(repo, REPORT_RELPATH)} (edit if needed) ---")
+    print(f"--- drafted in {report_path(repo)} (edit if needed) ---")
+    stale_dir = legacy_draft_dir(repo)
+    if stale_dir:
+        # An older version kept the draft here and added a line to this repo's .gitignore
+        # to hide it. Neither is used any more, and neither is ours to delete.
+        print(f"note: {stale_dir} is left over from an older tdreport and can be removed,")
+        print("      along with the `.tdreport/` line it added to this repo's .gitignore")
     if _confirm("Commit this?", assume_yes=args.yes):
         try:
             rc, msg = do_commit(selector, ai=args.ai_note, **ai_opts)

@@ -1,14 +1,27 @@
 """Tests for the report commit assistant — working tree vs HEAD (issue #5)."""
 
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from ufo_tdkit_report import extract_working_facts
 from ufo_tdkit_report.cli import _confirm, _is_range
-from ufo_tdkit_report.commit import commit, inspect, report_path, resolve_repo
+from ufo_tdkit_report.commit import (
+    commit,
+    inspect,
+    legacy_draft_dir,
+    report_path,
+    resolve_repo,
+)
 from ufo_tdkit_report.model import FactType, FileKind, FoldedFact, SourceReport
 from ufo_tdkit_report.render import render_commit_message
+
+
+@pytest.fixture(autouse=True)
+def isolated_config(tmp_path, monkeypatch):
+    """Drafts live in the config dir now, so every test needs its own."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
 
 
 def _git(repo, *args):
@@ -70,14 +83,49 @@ def test_render_commit_message_empty():
     assert render_commit_message(report).strip() == "No source changes"
 
 
-def test_inspect_writes_draft_and_gitignores(tmp_path):
+def test_inspect_writes_the_draft_outside_the_repository(tmp_path):
+    """Nothing tdreport-related is written inside the font repo — not even a draft.
+
+    It used to land in `<repo>/.tdreport/`, which meant appending a line to the
+    repository's own `.gitignore`: a silent edit to a tracked file, to hide a problem the
+    tool had just created.
+    """
     repo, glyphs, profile = _repo(tmp_path)
     (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (99, 88))))
+    gitignore = tmp_path / "font" / ".gitignore"
+    before = gitignore.read_text() if gitignore.is_file() else None
+
     root, text, changed = inspect(profile)
+
     assert changed is True
-    assert report_path(root).is_file()
     assert "outline redrawn" in text
-    assert ".tdreport/" in (tmp_path / "font" / ".gitignore").read_text()
+    draft = report_path(root)
+    assert draft.is_file()
+    assert "outline redrawn" in draft.read_text()
+    # In the config dir, keyed by this repo…
+    assert str(tmp_path / "cfg" / "ufo-tdkit-report" / "drafts") in str(draft)
+    # …and the repository is exactly as it was.
+    assert not (Path(root) / ".tdreport").exists()
+    assert (gitignore.read_text() if gitignore.is_file() else None) == before
+
+
+def test_two_repos_with_the_same_name_get_separate_drafts(tmp_path):
+    first, _, profile_a = _repo(tmp_path / "a")
+    second, _, profile_b = _repo(tmp_path / "b")
+    assert report_path(str(first)) != report_path(str(second))
+
+
+def test_a_leftover_in_repo_draft_dir_is_reported_not_deleted(tmp_path):
+    """It is the owner's repository; saying so is ours, removing it is theirs."""
+    repo, _, profile = _repo(tmp_path)
+    stale = Path(repo) / ".tdreport"
+    stale.mkdir()
+    (stale / "commit-message.md").write_text("old draft")
+
+    assert legacy_draft_dir(str(repo)) == stale
+    inspect(profile)
+    assert stale.is_dir()  # untouched
+    assert legacy_draft_dir(str(tmp_path)) is None
 
 
 def test_inspect_clean_tree_reports_no_changes(tmp_path):

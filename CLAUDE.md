@@ -163,7 +163,12 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   Writes go through `config.write_dotenv_var`, which preserves every other line — never
   rewrite that file wholesale (one account's key must not drop another's). Nothing
   tdreport-related is written **inside the font repository**: a config file there would
-  be committed and shared, which is how keys leak. The key is not read from the process
+  be committed and shared, which is how keys leak. That now includes the drafted commit
+  message (`<config>/drafts/<repo>/`) — keeping it in `<repo>/.tdreport/` meant appending
+  to the repository's own `.gitignore`, a silent edit to a tracked file to hide a problem
+  the tool had created. Don't reintroduce a write into someone's repo, and don't move the
+  draft to `/tmp` either: an `--ai-note` draft cost a paid call and `/tmp` is cleared on
+  reboot. The key is not read from the process
   environment, a repo `.env`, or the cwd — don't reintroduce those fallbacks. Removing an
   account removes its key; anything user-facing shows a masked key, never the value.
 - **Providers are a table, not integrations.** `providers.py` speaks two dialects and

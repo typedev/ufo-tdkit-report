@@ -9,6 +9,30 @@ All notable changes to this project are documented here. The format follows
 
 _Nothing yet._
 
+## [0.3.1] - 2026-09-03
+
+### Changed
+- **The drafted commit message moved out of the font repository.** It used to be written
+  to `<repo>/.tdreport/commit-message.md`, which required appending a line to the
+  repository's own `.gitignore` — a silent edit to a tracked file in someone else's
+  project, made to hide a problem the tool itself had created. Nothing tdreport-related
+  is written inside a repository any more, the same rule accounts and bindings already
+  follow. `_ensure_gitignored` is gone.
+
+  The draft now lives at `<config>/drafts/<repo>/commit-message.md`, keyed by the
+  registered name (or the basename plus a digest of the path, so two repos called `Sans`
+  never share one). Not a temp directory: an hour can pass between drafting and
+  committing, `/tmp` is cleared on reboot, and re-generating a deterministic draft is free
+  while an `--ai-note` draft cost a paid model call.
+
+  A leftover `<repo>/.tdreport/` from an older version is **reported, not deleted** — it
+  is the owner's repository, and the `.gitignore` line an older version added is theirs
+  to remove.
+
+  `commit.REPORT_RELPATH` is gone (the draft is no longer at a path relative to the
+  repo); `commit.report_path(repo)` still returns the draft's location and is the
+  supported way to find it. `commit.legacy_draft_dir(repo)` reports a leftover one.
+
 ## [0.3.0] - 2026-09-02
 
 ### Added
@@ -281,7 +305,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.1.2...v0.2.0

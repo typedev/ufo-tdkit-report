@@ -139,7 +139,8 @@ Three files in `~/.config/ufo-tdkit-report/` (`~/Library/Application Support/…
 | `.env` | **Keys only**, mode `0600`, one variable per account (`TDREPORT_KEY_WORK`) |
 | `settings.json` | Accounts: provider, model, language, base URL. No secrets |
 | `repos.json` | Registered repos, their bindings and overrides. No secrets |
-| *inside the font repo* | Nothing. A config file there would be committed and shared — that is how keys leak |
+| `drafts/` | Drafted commit messages, removed once committed. Safe to delete |
+| *inside the font repo* | Nothing — not a config file, not even the draft. A file there would be committed and shared |
 
 Keys are never read from the process environment, a repo `.env`, or the cwd, so a stray
 `export` cannot leak one in. `settings.json` and `repos.json` are safe to back up.
