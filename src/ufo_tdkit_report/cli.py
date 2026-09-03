@@ -130,6 +130,59 @@ def _registry_name_for(repo: str) -> str | None:
     return registry.name_for_path(repo)
 
 
+def _do_commit(selector, args, ai_opts, do_commit) -> int:
+    """Commit, resolving a stale draft first: ask on a TTY, refuse in a pipe.
+
+    A draft that no longer describes the working tree would put a wrong description into
+    git history — unfixable afterwards without rewriting it. So the default is to refuse,
+    and the way out is explicit.
+    """
+    from ufo_tdkit_report import NarratorError
+    from ufo_tdkit_report.commit import draft_state, inspect, resolve_repo
+
+    stale_ok = args.stale_ok
+    try:
+        state = draft_state(resolve_repo(selector))
+    except RuntimeError as exc:
+        print(f"error: {exc}")
+        return 1
+
+    if state.exists and state.stale and not stale_ok:
+        if not sys.stdin.isatty():
+            print("error: the working tree changed since this draft was written, so it no "
+                  "longer describes what would be committed.")
+            print(f"       redraft it, or pass --stale-ok to commit it anyway. draft: {state.path}")
+            return 1
+        print("The working tree changed since this draft was written, so it no longer")
+        print("describes what would be committed.")
+        if state.ai:
+            print("(this draft was written by AI — redrafting needs `--ai-note` to stay prose)")
+        answer = (_prompt_line("  [r]edraft, [c]ommit anyway, [a]bort? ") or "a").lower()
+        if answer.startswith("r"):
+            try:
+                _, text, _ = inspect(selector, ai=args.ai_note, regenerate=True, **ai_opts)
+            except (NarratorError, RuntimeError) as exc:
+                print(f"error: {exc}")
+                return 1
+            print(text)
+            if not _confirm("Commit this?", assume_yes=args.yes):
+                print("Not committed.")
+                return 0
+        elif answer.startswith("c"):
+            stale_ok = True
+        else:
+            print("Aborted.")
+            return 0
+
+    try:
+        rc, msg = do_commit(selector, ai=args.ai_note, allow_stale=stale_ok, **ai_opts)
+    except (NarratorError, RuntimeError) as exc:
+        print(f"error: {exc}")
+        return 1
+    print(msg)
+    return rc
+
+
 def _parse_strictness(answer: str) -> bool | None:
     """`strict`/`warn` (and the obvious synonyms) -> a flag, or None if unrecognised."""
     value = (answer or "").strip().lower()
@@ -247,6 +300,14 @@ Examples:
              f"spends this budget on thinking before it writes anything",
     )
     parser.add_argument("-y", "--yes", action="store_true", help="auto-confirm the 'commit this?' prompt")
+    parser.add_argument(
+        "--regenerate", action="store_true",
+        help="redraft the commit message from the current changes, discarding your edits",
+    )
+    parser.add_argument(
+        "--stale-ok", dest="stale_ok", action="store_true",
+        help="commit an edited draft even though the working tree moved since it was written",
+    )
 
     from ufo_tdkit_report import __version__
 
@@ -715,7 +776,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- working-tree commit assistant (repo selector: cwd / name / path) ---
     from ufo_tdkit_report.commit import commit as do_commit
-    from ufo_tdkit_report.commit import inspect, legacy_draft_dir, report_path
+    from ufo_tdkit_report.commit import draft_state, inspect, legacy_draft_dir, report_path
 
     # `tdreport commit` (cwd) or `tdreport <repo> commit`
     if args.target == "commit" and not args.rest:
@@ -732,19 +793,19 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     if action == "commit":
-        try:
-            rc, msg = do_commit(selector, ai=args.ai_note, **ai_opts)
-        except (NarratorError, RuntimeError) as exc:
-            print(f"error: {exc}")
-            return 1
-        print(msg)
-        return rc
+        return _do_commit(selector, args, ai_opts, do_commit)
 
     try:
-        repo, text, has_changes = inspect(selector, ai=args.ai_note, **ai_opts)
+        repo, text, has_changes = inspect(
+            selector, ai=args.ai_note, regenerate=args.regenerate, **ai_opts
+        )
     except (NarratorError, RuntimeError) as exc:
         print(f"error: {exc}")
         return 1
+    state = draft_state(repo)
+    if state.edited and not args.regenerate:
+        print("note: showing your edited draft, not a fresh one "
+              "(`--regenerate` to redraft from the current changes)")
     print(text)
     if not has_changes:
         return 0
@@ -756,13 +817,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"note: {stale_dir} is left over from an older tdreport and can be removed,")
         print("      along with the `.tdreport/` line it added to this repo's .gitignore")
     if _confirm("Commit this?", assume_yes=args.yes):
-        try:
-            rc, msg = do_commit(selector, ai=args.ai_note, **ai_opts)
-        except (NarratorError, RuntimeError) as exc:
-            print(f"error: {exc}")
-            return 1
-        print(msg)
-        return rc
+        return _do_commit(selector, args, ai_opts, do_commit)
     hint = selector or "."
     print(f"Not committed. Run `tdreport {hint} commit` when ready.")
     return 0

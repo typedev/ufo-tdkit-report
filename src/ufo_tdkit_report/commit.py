@@ -18,9 +18,12 @@ Not a temp directory either: between drafting and committing an hour can pass, a
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from ufo_tdkit_report.config import config_dir
@@ -28,6 +31,7 @@ from ufo_tdkit_report.render import render_commit_message
 from ufo_tdkit_report.service import extract_working_facts
 
 DRAFT_NAME = "commit-message.md"
+STATE_NAME = "draft.json"
 # Where the draft used to live, inside the repository. Only looked for now, to tell the
 # owner it can go.
 LEGACY_RELDIR = ".tdreport"
@@ -71,18 +75,13 @@ def resolve_repo(target: str | None = None) -> str:
 
 
 def _draft_key(repo: str) -> str:
-    """A readable, collision-free directory name for one repository.
+    """A readable, collision-free, REGISTRATION-INDEPENDENT directory name for a repo.
 
-    The registered name when there is one; otherwise the basename plus a short digest of
-    the absolute path, so two repos called `Sans` in different places never share a draft.
+    Basename plus a short digest of the absolute path: two repos called `Sans` in
+    different places never share a draft, and — the reason for the digest rather than the
+    registered name — registering a repo does not move its drafts. Keying by the
+    registered name orphaned any draft written before registration, silently.
     """
-    from ufo_tdkit_report import registry
-
-    name = registry.name_for_path(repo)
-    if name:
-        return re.sub(r"[^A-Za-z0-9._-]", "_", name)
-    import hashlib
-
     resolved = str(Path(repo).expanduser().resolve())
     digest = hashlib.sha256(resolved.encode("utf-8")).hexdigest()[:8]
     base = re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(resolved)) or "repo"
@@ -104,6 +103,75 @@ def legacy_draft_dir(repo: str) -> Path | None:
     return path if path.is_dir() else None
 
 
+@dataclass(frozen=True)
+class DraftState:
+    """What is known about an existing draft, and whether it can still be trusted.
+
+    Two independent questions, because they have different answers and different costs:
+
+    ``edited``  — the file differs from the text tdreport produced, so a human changed it.
+                  Overwriting that silently loses their words, and for an ``--ai-note``
+                  draft it also throws away a paid model call.
+    ``stale``   — the working tree no longer produces the facts this draft describes.
+                  Committing it would put a wrong description of the change into git
+                  history, which is the one failure this whole tool exists to prevent.
+
+    Staleness is measured against the FACTS, not the files: an editor re-serializing a
+    UFO changes bytes but produces identical facts, and must not invalidate a draft.
+    """
+
+    path: Path
+    exists: bool = False
+    edited: bool = False
+    stale: bool = False
+    ai: bool = False
+
+
+def _digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def facts_digest(report) -> str:
+    """A stable fingerprint of what a report says. Reuses the byte-stability guarantee."""
+    return _digest(json.dumps(report.to_dict(), sort_keys=True, ensure_ascii=False))
+
+
+def state_path(repo: str) -> Path:
+    return report_path(repo).with_name(STATE_NAME)
+
+
+def _write_state(repo: str, *, facts: str, generated: str, ai: bool) -> None:
+    path = state_path(repo)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"facts": facts, "generated": generated, "ai": ai}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def draft_state(repo: str, report=None) -> DraftState:
+    """Inspect the stored draft for ``repo``. Reads only; never writes or prompts."""
+    draft = report_path(repo)
+    if not draft.is_file():
+        return DraftState(path=draft)
+    try:
+        stored = json.loads(state_path(repo).read_text(encoding="utf-8"))
+        text = draft.read_text(encoding="utf-8")
+    except (OSError, json.JSONDecodeError):
+        # No sidecar (or unreadable): assume a human owns the file rather than risk
+        # overwriting it, and cannot tell whether it is stale.
+        return DraftState(path=draft, exists=True, edited=True)
+    if report is None:
+        report = extract_working_facts(repo)
+    return DraftState(
+        path=draft,
+        exists=True,
+        edited=_digest(text) != stored.get("generated"),
+        stale=facts_digest(report) != stored.get("facts"),
+        ai=bool(stored.get("ai")),
+    )
+
+
 def inspect(
     target: str | None = None,
     *,
@@ -114,6 +182,7 @@ def inspect(
     account: str | None = None,
     strict_grounding: bool | None = None,
     max_tokens: int | None = None,
+    regenerate: bool = False,
 ) -> tuple[str, str, bool]:
     """Inspect uncommitted changes; write the drafted message to the report file.
 
@@ -125,6 +194,12 @@ def inspect(
     repo = resolve_repo(target)
     report = extract_working_facts(repo)
     has_changes = bool(report.folded_facts)
+
+    # A draft the owner has edited is theirs, not ours to overwrite — re-running to look
+    # at the report again must not cost them their words (or a paid narration).
+    state = draft_state(repo, report)
+    if state.edited and not regenerate:
+        return repo, state.path.read_text(encoding="utf-8"), has_changes
 
     if ai:
         from ufo_tdkit_report.narrator import narrate_commit
@@ -141,6 +216,7 @@ def inspect(
     path = report_path(repo)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+    _write_state(repo, facts=facts_digest(report), generated=_digest(text), ai=ai)
     return repo, text, has_changes
 
 
@@ -154,6 +230,7 @@ def commit(
     account: str | None = None,
     strict_grounding: bool | None = None,
     max_tokens: int | None = None,
+    allow_stale: bool = False,
 ) -> tuple[int, str]:
     """Commit the working tree using the drafted message (generating it if absent).
 
@@ -170,6 +247,18 @@ def commit(
     if not path.is_file():
         inspect(target, ai=ai, model=model, provider=provider, language=language,
                 account=account, strict_grounding=strict_grounding, max_tokens=max_tokens)
+    else:
+        # `git add -A` below commits the tree as it is NOW; the draft describes the tree as
+        # it was THEN. Shipping the two together writes a wrong description into history.
+        state = draft_state(repo)
+        if state.stale and not allow_stale:
+            hint = " (it was AI-written; add `--ai-note`)" if state.ai else ""
+            return 1, (
+                f"the working tree changed since this draft was written, so it no longer "
+                f"describes what would be committed. Redraft with `tdreport "
+                f"{target or '.'}`{hint}, or commit it anyway with --stale-ok.\n"
+                f"draft: {path}"
+            )
 
     _git(repo, "add", "-A")
     commit_msg = path.read_text(encoding="utf-8")
@@ -178,9 +267,10 @@ def commit(
         return 1, f"git commit failed: {(proc.stderr or '').strip()}"
 
     # Drop the temporary draft now that it is the commit message.
-    try:
-        path.unlink()
-    except OSError:
-        pass
+    for leftover in (path, state_path(repo)):
+        try:
+            leftover.unlink()
+        except OSError:
+            pass
     subject = commit_msg.splitlines()[0] if commit_msg.strip() else ""
     return 0, f"committed: {subject}"

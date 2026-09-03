@@ -9,6 +9,35 @@ All notable changes to this project are documented here. The format follows
 
 _Nothing yet._
 
+## [0.3.2] - 2026-09-03
+
+### Fixed
+- **An edited draft is no longer silently overwritten.** Re-running `tdreport <repo>` to
+  read the report again used to rewrite the draft, discarding whatever the owner had
+  written into it — and, for an `--ai-note` draft, throwing away a paid model call with
+  it. The draft is now kept and shown, with a note; `--regenerate` replaces it on
+  request.
+- **A stale draft can no longer put a wrong description into git history.** `commit`
+  stages the tree as it is *now* and commits it with text drafted *then*; if files
+  changed in between, the message described a different change. That is the one failure
+  this tool exists to prevent, and it was silent. The draft now records a fingerprint of
+  the facts it describes, and committing a stale one is refused — on a TTY with a
+  `[r]edraft / [c]ommit anyway / [a]bort` question, in a pipe with an error and
+  `--stale-ok` named as the way out.
+
+  Staleness is measured against the **facts**, not the files: an editor re-serializing a
+  UFO changes bytes while producing identical facts, and must not invalidate a draft.
+  The fingerprint is a digest of the deterministic report, reusing the byte-stability
+  guarantee the project already provides.
+- The draft directory is keyed by path digest rather than by the registered name, so
+  **registering a repo no longer orphans a draft** written before it was registered.
+
+### Added
+- `commit.draft_state(repo)` reports whether a draft `exists`, was `edited`, has gone
+  `stale`, and whether it was `ai`-written; `commit.state_path(repo)` locates its sidecar.
+  `commit(..., allow_stale=True)` and `inspect(..., regenerate=True)` are the library
+  equivalents of `--stale-ok` and `--regenerate`.
+
 ## [0.3.1] - 2026-09-03
 
 ### Changed
@@ -305,7 +334,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.2.0...v0.2.1

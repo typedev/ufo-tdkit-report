@@ -9,10 +9,12 @@ from ufo_tdkit_report import extract_working_facts
 from ufo_tdkit_report.cli import _confirm, _is_range
 from ufo_tdkit_report.commit import (
     commit,
+    draft_state,
     inspect,
     legacy_draft_dir,
     report_path,
     resolve_repo,
+    state_path,
 )
 from ufo_tdkit_report.model import FactType, FileKind, FoldedFact, SourceReport
 from ufo_tdkit_report.render import render_commit_message
@@ -115,6 +117,16 @@ def test_two_repos_with_the_same_name_get_separate_drafts(tmp_path):
     assert report_path(str(first)) != report_path(str(second))
 
 
+def test_registering_a_repo_does_not_move_its_draft(tmp_path):
+    """Keying by the registered name orphaned any draft written before registration."""
+    from ufo_tdkit_report import registry
+
+    repo, glyphs, profile = _repo(tmp_path)
+    before = report_path(str(repo))
+    registry.add("MyFont", str(repo))
+    assert report_path(str(repo)) == before
+
+
 def test_a_leftover_in_repo_draft_dir_is_reported_not_deleted(tmp_path):
     """It is the owner's repository; saying so is ours, removing it is theirs."""
     repo, _, profile = _repo(tmp_path)
@@ -135,6 +147,75 @@ def test_inspect_clean_tree_reports_no_changes(tmp_path):
     assert text.strip() == "No source changes"
 
 
+def test_an_edited_draft_survives_a_second_look(tmp_path):
+    """Re-running to read the report again must not cost the owner their words.
+
+    For an --ai-note draft it would also throw away a paid model call.
+    """
+    repo, glyphs, profile = _repo(tmp_path)
+    (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (99, 88))))
+    root, _, _ = inspect(profile)
+    report_path(root).write_text("MY OWN SUBJECT\n\n- written by hand\n")
+
+    _, text, _ = inspect(profile)
+    assert text == "MY OWN SUBJECT\n\n- written by hand\n"
+    assert draft_state(root).edited is True
+
+    # …until it is asked for explicitly.
+    _, fresh, _ = inspect(profile, regenerate=True)
+    assert "outline redrawn" in fresh
+    assert draft_state(root).edited is False
+
+
+def test_a_draft_goes_stale_when_the_facts_change_not_the_bytes(tmp_path):
+    repo, glyphs, profile = _repo(tmp_path)
+    (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (99, 88))))
+    root, _, _ = inspect(profile)
+    assert draft_state(root).stale is False
+
+    # Rewriting identical content changes mtime, not the facts — still fresh.
+    (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (99, 88))))
+    assert draft_state(root).stale is False
+
+    # A real change makes the description wrong.
+    (glyphs / "B_.glif").write_text(_glif("B", points=((5, 5), (6, 6))))
+    assert draft_state(root).stale is True
+
+
+def test_committing_a_stale_draft_is_refused_unless_allowed(tmp_path):
+    """A wrong description in git history cannot be fixed without rewriting it."""
+    repo, glyphs, profile = _repo(tmp_path)
+    (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (99, 88))))
+    root, _, _ = inspect(profile)
+    report_path(root).write_text("MY OWN SUBJECT\n")
+    (glyphs / "B_.glif").write_text(_glif("B", points=((5, 5), (6, 6))))
+
+    rc, msg = commit(profile)
+    assert rc == 1
+    assert "no longer describes what would be committed" in msg
+    assert "--stale-ok" in msg
+    assert report_path(root).is_file()  # nothing was committed, nothing was lost
+
+    rc, msg = commit(profile, allow_stale=True)
+    assert rc == 0
+    head = subprocess.run(
+        ["git", "-C", str(repo), "log", "-1", "--format=%s"], capture_output=True, text=True
+    ).stdout.strip()
+    assert head == "MY OWN SUBJECT"
+
+
+def test_the_state_file_records_whether_the_draft_was_ai_written(tmp_path):
+    repo, glyphs, profile = _repo(tmp_path)
+    (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (99, 88))))
+    root, _, _ = inspect(profile)
+    assert draft_state(root).ai is False
+    assert state_path(root).is_file()
+
+    # A draft with no sidecar is treated as the owner's, not ours to overwrite.
+    state_path(root).unlink()
+    assert draft_state(root).edited is True
+
+
 def test_commit_uses_message_and_cleans_up(tmp_path):
     repo, glyphs, profile = _repo(tmp_path)
     (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (99, 88))))
@@ -143,6 +224,7 @@ def test_commit_uses_message_and_cleans_up(tmp_path):
     assert "committed:" in msg
     # the draft is gone and HEAD carries the drafted subject
     assert not report_path(resolve_repo(profile)).is_file()
+    assert not state_path(resolve_repo(profile)).is_file()
     head = subprocess.run(
         ["git", "-C", str(repo), "log", "-1", "--format=%s"], capture_output=True, text=True
     ).stdout.strip()

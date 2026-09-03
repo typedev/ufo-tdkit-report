@@ -561,5 +561,87 @@ def test_a_strict_account_refuses_an_unsupported_narration(tmp_path, monkeypatch
     assert "`questiondown` — not in the facts" in out
 
 
+def _stale_draft(tmp_path):
+    """A repo whose edited draft no longer describes the working tree."""
+    from ufo_tdkit_report.commit import inspect, report_path
+
+    repo = _git_repo(tmp_path, "Stale")
+    (repo / "a.txt").write_text("one")
+    root, _, _ = inspect(str(repo))
+    report_path(root).write_text("MY OWN SUBJECT\n")
+    (repo / "b.txt").write_text("two")           # the tree moves on
+    return repo
+
+
+def test_a_stale_draft_is_refused_in_a_pipe(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    monkeypatch.setattr("builtins.input", lambda _p="": pytest.fail("prompted in a pipe"))
+    repo = _stale_draft(tmp_path)
+
+    assert main([str(repo), "commit"]) == 1
+    out = capsys.readouterr().out
+    assert "no longer describes what would be committed" in out
+    assert "--stale-ok" in out
+
+
+def test_a_stale_draft_asks_on_a_tty(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    repo = _stale_draft(tmp_path)
+
+    # Abort leaves the repository and the draft alone.
+    monkeypatch.setattr("builtins.input", lambda _p="": "a")
+    assert main([str(repo), "commit"]) == 0
+    assert "Aborted." in capsys.readouterr().out
+    assert subprocess_head(repo) == "init"
+
+    # Commit anyway uses the edited text.
+    monkeypatch.setattr("builtins.input", lambda _p="": "c")
+    assert main([str(repo), "commit"]) == 0
+    assert subprocess_head(repo) == "MY OWN SUBJECT"
+
+
+def test_a_stale_draft_can_be_redrafted_from_the_prompt(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr("sys.stdin.isatty", lambda: True)
+    repo = _stale_draft(tmp_path)
+
+    answers = iter(["r", "y"])          # redraft, then confirm the fresh one
+    monkeypatch.setattr("builtins.input", lambda _p="": next(answers))
+    assert main([str(repo), "commit"]) == 0
+    head = subprocess_head(repo)
+    assert head != "MY OWN SUBJECT"     # the stale text did not reach history
+    assert "b.txt" in capsys.readouterr().out or head
+
+
+def test_an_edited_draft_is_announced_not_silently_replaced(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    from ufo_tdkit_report.commit import report_path
+
+    repo = _git_repo(tmp_path, "Edited")
+    (repo / "a.txt").write_text("one")
+    assert main([str(repo)]) == 0
+    capsys.readouterr()
+    report_path(str(repo)).write_text("MY OWN SUBJECT\n")
+
+    assert main([str(repo)]) == 0
+    out = capsys.readouterr().out
+    assert "showing your edited draft" in out
+    assert "MY OWN SUBJECT" in out
+
+    assert main([str(repo), "--regenerate"]) == 0
+    assert "MY OWN SUBJECT" not in capsys.readouterr().out
+
+
+def subprocess_head(repo):
+    import subprocess
+
+    return subprocess.run(
+        ["git", "-C", str(repo), "log", "-1", "--format=%s"], capture_output=True, text=True
+    ).stdout.strip()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -110,6 +110,24 @@ tdreport v2.005..v2.006        # endpoint diff of a range (cwd repo)
 tdreport --notes v2.005..HEAD  # aggregate every commit in the range into release notes
 ```
 
+## Editing the drafted commit message
+
+`tdreport <repo>` prints the draft and where it lives; answer `n` at the prompt, edit
+that file, then `tdreport <repo> commit` — the edited text is used as-is, and you do not
+need to repeat `--ai-note`.
+
+Two things are guarded:
+
+- Re-running `tdreport <repo>` to look at the report again **keeps your edits** rather
+  than overwriting them. Use `--regenerate` when you do want a fresh draft.
+- If the working tree changes after you drafted, the message no longer describes what
+  would be committed. Committing it is **refused** — on a terminal it asks whether to
+  redraft, commit anyway, or abort; in a pipe it errors and names `--stale-ok`. A wrong
+  description in git history cannot be fixed without rewriting it.
+
+Staleness is judged on the *facts*, not the bytes: an editor re-serializing a UFO does
+not invalidate a draft, because the extracted facts are unchanged.
+
 ## Recipes
 
 > A one-page reference for all of the below — the two levels, what wins, and what to do
@@ -182,7 +200,7 @@ Three files live there, and only the first one holds secrets:
 | `.env`          | API keys, one per account           | `0600`      |
 | `settings.json` | accounts: provider, model, language | —           |
 | `repos.json`    | registered repos and their bindings | —           |
-| `drafts/`       | commit-message drafts, deleted once committed | — |
+| `drafts/`       | commit-message drafts and their fingerprints, deleted once committed | — |
 
 Keys never appear in `settings.json` or `repos.json`, and **nothing tdreport-related is
 ever written inside your font repository** — not a config file, which would be committed

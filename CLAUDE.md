@@ -168,7 +168,13 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   to the repository's own `.gitignore`, a silent edit to a tracked file to hide a problem
   the tool had created. Don't reintroduce a write into someone's repo, and don't move the
   draft to `/tmp` either: an `--ai-note` draft cost a paid call and `/tmp` is cleared on
-  reboot. The key is not read from the process
+  reboot. A draft carries a sidecar (`draft.json`) with two digests: of the text *we*
+  produced, so an owner's edits are never overwritten, and of the *facts* it describes,
+  so committing a draft the working tree has outgrown is refused rather than writing a
+  wrong description into history. Fingerprint the facts, never the file bytes — an editor
+  re-serializing a UFO must not invalidate a draft. The draft directory is keyed by path
+  digest, not by the registered name: keying by name orphaned drafts written before a
+  repo was registered. The key is not read from the process
   environment, a repo `.env`, or the cwd — don't reintroduce those fallbacks. Removing an
   account removes its key; anything user-facing shows a masked key, never the value.
 - **Providers are a table, not integrations.** `providers.py` speaks two dialects and
