@@ -1,4 +1,4 @@
-"""Parse and diff ``features.fea`` at the rule level (issue #5, phase 1).
+"""Parse and diff ``features.fea`` at the rule level.
 
 Binary diff only sees feature *tags* (added/removed). Real releases add substitution
 rules *inside existing* tags (e.g. ss02/ss03/pnum/tnum), which a tag-level view

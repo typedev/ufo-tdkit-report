@@ -1,4 +1,4 @@
-"""Tests for the report commit assistant — working tree vs HEAD (issue #5)."""
+"""Tests for the report commit assistant — working tree vs HEAD."""
 
 import subprocess
 from pathlib import Path

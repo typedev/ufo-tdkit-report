@@ -1,4 +1,4 @@
-"""Tests for the report git layer + end-to-end service (issue #5)."""
+"""Tests for the report git layer + end-to-end service."""
 
 import subprocess
 

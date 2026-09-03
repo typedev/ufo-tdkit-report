@@ -7,7 +7,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **CI** — `pytest` and `ruff` on every push and pull request, across Python 3.10 (the
+  floor from `requires-python`) and 3.13, on Linux **and macOS**. macOS is not padding:
+  `config_dir()` branches per platform and font work is heavily macOS, so a Linux-only
+  matrix would never exercise half of that path.
+
+### Fixed
+- Test repositories now configure their own git identity. Several suites relied on the
+  developer's global `user.name`/`user.email`; on a runner without one, 18 tests failed.
+
+### Changed
+- Module and test docstrings no longer carry `(issue #5, phase N)` breadcrumbs pointing
+  at a tracker outside this repository, and `profile.py` describes "a build-profile YAML"
+  rather than naming one build tool — the module is deliberately build-tool-agnostic, so
+  naming a vendor in its own docstring contradicted the invariant it implements.
 
 ## [0.3.2] - 2026-09-03
 

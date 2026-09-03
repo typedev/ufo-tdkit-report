@@ -1,4 +1,4 @@
-"""Tests for the grounded AI narrator (issue #5, phase 5).
+"""Tests for the grounded AI narrator.
 
 No network: the prompt assembly and response parsing are pure, and `narrate` takes
 an injected transport so the HTTP layer is never exercised here.
@@ -347,6 +347,8 @@ def test_a_report_carries_its_repo_so_a_caller_cannot_forget(tmp_path, monkeypat
     repo = tmp_path / "MyFont"
     (repo / "sources").mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for key, value in (("user.email", "t@t"), ("user.name", "t")):
+        subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "i"], check=True)
     (repo / "a.txt").write_text("x")
 
@@ -380,6 +382,8 @@ def test_the_repo_never_reaches_the_output(tmp_path, monkeypatch):
     repo = tmp_path / "MyFont"
     repo.mkdir()
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for key, value in (("user.email", "t@t"), ("user.name", "t")):
+        subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
     subprocess.run(["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "i"], check=True)
     (repo / "a.txt").write_text("x")
 

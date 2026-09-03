@@ -1,4 +1,4 @@
-"""Collapse raw atomic facts into a few user-facing folded facts (issue #5, phase 1).
+"""Collapse raw atomic facts into a few user-facing folded facts.
 
 The compression that turns "293 changed files" into "~6 facts": group identical
 atoms across masters, group component shifts by ``(base, delta)``, and above a

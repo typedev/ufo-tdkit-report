@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor from `requires-python` and the current release, on both platforms
+        # that matter here: `config_dir()` branches per OS, and font work is heavily
+        # macOS, so a Linux-only matrix would never exercise half of that path.
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.10", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The suite builds real git repos and diffs commit ranges; a shallow clone of
+          # THIS repo is fine, but tags are needed for nothing here — keep it cheap.
+          fetch-depth: 1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --extra dev --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Test
+        # The suite shells out to git and must not inherit a runner identity it does not
+        # have; every test repo configures its own. `-q` keeps the log readable.
+        run: uv run pytest -q

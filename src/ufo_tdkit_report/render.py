@@ -1,4 +1,4 @@
-"""Render source-change reports as Markdown (issue #5).
+"""Render source-change reports as Markdown.
 
 Output follows the conventions of the per-repo release-notes template so these
 notes drop into the same release pipeline: an ``## Source changes: from -> to``

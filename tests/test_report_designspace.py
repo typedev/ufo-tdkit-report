@@ -1,4 +1,4 @@
-"""Tests for the report designspace differ (issue #5)."""
+"""Tests for the report designspace differ."""
 
 import pytest
 

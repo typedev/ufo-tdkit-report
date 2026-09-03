@@ -1,4 +1,4 @@
-"""Parse and diff ``*.designspace`` sources coarsely (issue #5, phase 1).
+"""Parse and diff ``*.designspace`` sources coarsely.
 
 We parse selected fields with ``xml.etree`` (no temp files, fully deterministic):
 axes, sources (masters), instances, and ``<rules>``. Substitution-level rule

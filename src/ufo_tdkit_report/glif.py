@@ -1,4 +1,4 @@
-"""Parse and diff ``.glif`` sources semantically (issue #5, phase 1).
+"""Parse and diff ``.glif`` sources semantically.
 
 A glif blob is parsed via ``readGlyphFromString`` into a defcon ``Glyph`` so the
 view is normalized: ``<advance>``/``<unicode>`` ordering and whitespace are ignored,

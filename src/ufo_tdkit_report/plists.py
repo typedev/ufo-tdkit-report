@@ -1,4 +1,4 @@
-"""Parse and diff UFO plist sources: kerning, groups, fontinfo (issue #5, phase 1).
+"""Parse and diff UFO plist sources: kerning, groups, fontinfo.
 
 Uses stdlib ``plistlib`` (order-agnostic into dicts), so reformatting is invisible.
 fontinfo is filtered to a curated set of high-signal release-relevant keys.

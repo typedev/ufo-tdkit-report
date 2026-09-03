@@ -1,5 +1,7 @@
 # ufo-tdkit-report
 
+[![CI](https://github.com/typedev/ufo-tdkit-report/actions/workflows/ci.yml/badge.svg)](https://github.com/typedev/ufo-tdkit-report/actions/workflows/ci.yml)
+
 Deterministic, git-centric source-change extractor and narrator for UFO / designspace
 font projects. It diffs the **sources** semantically (formatting-agnostic) and compresses
 the changes into a few facts — catching outline redraws and feature-rule changes that a

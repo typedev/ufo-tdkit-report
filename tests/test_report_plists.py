@@ -1,4 +1,4 @@
-"""Tests for the report plist differs: kerning, groups, fontinfo (issue #5)."""
+"""Tests for the report plist differs: kerning, groups, fontinfo."""
 
 import plistlib
 

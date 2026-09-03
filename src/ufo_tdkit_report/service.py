@@ -1,7 +1,8 @@
 """Orchestrate the report extractor: git -> classify -> rollup -> report.
 
-This is the seam the future releaser/aggregator (issue #4) consumes: it returns a
-structured ``SourceReport`` and never prints.
+This is the seam every consumer goes through — the range aggregator, the commit
+assistant, an embedding release tool: it returns a structured ``SourceReport`` and
+never prints.
 """
 
 from __future__ import annotations

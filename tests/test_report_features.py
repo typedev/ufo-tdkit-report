@@ -1,4 +1,4 @@
-"""Tests for the report features.fea rule-level differ (issue #5)."""
+"""Tests for the report features.fea rule-level differ."""
 
 import pytest
 

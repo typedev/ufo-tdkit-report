@@ -12,6 +12,15 @@ from ufo_tdkit_report.narrator import DEFAULT_MODEL, resolve_model
 MODELS = [("claude-opus-5", "Claude Opus 5"), ("claude-haiku-4-5", "Claude Haiku 4.5")]
 
 
+def _git_init(repo):
+    """Init a repo AND give it an identity — a CI runner has no global git config."""
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for key, value in (("user.email", "t@t"), ("user.name", "t")):
+        subprocess.run(["git", "-C", str(repo), "config", key, value], check=True)
+
+
 def test_choose_model_by_number(monkeypatch, capsys):
     monkeypatch.setattr("builtins.input", lambda _prompt: "2")
     assert _choose_model(MODELS, "claude-opus-5") == "claude-haiku-4-5"
@@ -161,13 +170,12 @@ def test_set_url_targets_a_custom_endpoint(tmp_path, monkeypatch, capsys):
 
 def test_account_lifecycle_and_binding(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
-    import subprocess
 
     from ufo_tdkit_report import registry, settings
 
     repo = tmp_path / "AcmeSans"
     repo.mkdir()
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    _git_init(repo)
 
     # Off a TTY (scripts, CI) the positional and flag forms still work, unprompted.
     assert main(["account", "add", "work", "deepseek"]) == 0
@@ -214,7 +222,7 @@ def _git_repo(tmp_path, name):
 
     repo = tmp_path / name
     repo.mkdir(parents=True)
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    _git_init(repo)
     subprocess.run(["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "init"], check=True)
     return repo
 

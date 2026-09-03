@@ -1,4 +1,4 @@
-"""Tests for the report build-profile YAML differ (issue #5)."""
+"""Tests for the report build-profile YAML differ."""
 
 import pytest
 
@@ -115,7 +115,7 @@ def test_reordered_keys_is_noise():
 
 
 def test_non_profile_yaml_rejected():
-    # No 'path' key -> not a TDKit profile (e.g. a CI config).
+    # No 'path' key -> not a build profile (e.g. a CI config).
     assert parse_profile("name: CI\non: push\njobs: {}\n") is None
 
 

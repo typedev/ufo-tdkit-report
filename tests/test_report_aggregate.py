@@ -1,4 +1,4 @@
-"""Tests for the report range aggregator (issue #5, phase 4)."""
+"""Tests for the report range aggregator."""
 
 import subprocess
 

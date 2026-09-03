@@ -1,4 +1,4 @@
-"""Parse and diff the TDKit build-profile YAML (issue #5, phase 1).
+"""Parse and diff a build-profile YAML.
 
 Build-option deltas (ttfautohint added, version bumped, formats/hinting flags
 changed) are invisible to a binary font diff but materially change the output, so
@@ -42,8 +42,8 @@ def parse_profile(blob: str | None) -> ProfileSnapshot | None:
     except Exception:
         return None
     if not isinstance(data, dict) or "path" not in data:
-        # A TDKit profile always carries the required 'path' key; this guard keeps
-        # unrelated YAML (CI configs, etc.) from being mistaken for a build profile.
+        # A build profile always carries the required 'path' key; this guard keeps
+        # unrelated YAML (CI configs, etc.) from being mistaken for one.
         return None
     # Diff all options; unknown/newly introduced keys are kept too so they surface.
     return ProfileSnapshot(options=_flatten_options(data))

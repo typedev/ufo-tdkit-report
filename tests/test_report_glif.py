@@ -1,4 +1,4 @@
-"""Tests for the report glif parser/differ (issue #5)."""
+"""Tests for the report glif parser/differ."""
 
 import pytest
 

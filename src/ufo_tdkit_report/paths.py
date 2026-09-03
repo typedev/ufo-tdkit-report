@@ -1,4 +1,4 @@
-"""Map a repo-relative source path to its file kind and master/family (issue #5).
+"""Map a repo-relative source path to its file kind and master/family.
 
 Pure string logic. The authoritative glyph *name* comes from the glif body (parsed
 elsewhere), not the filename, because UFO filenames use name-mangling.

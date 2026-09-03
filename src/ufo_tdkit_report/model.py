@@ -1,4 +1,4 @@
-"""Data model for the report extractor (issue #5, phase 1).
+"""Data model for the report extractor.
 
 Pure data vocabulary: normalized source snapshots, the deterministic change-fact
 taxonomy, and the rolled-up report. This module imports nothing beyond the standard

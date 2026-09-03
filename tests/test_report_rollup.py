@@ -1,4 +1,4 @@
-"""Tests for the report rollup/fold logic (issue #5)."""
+"""Tests for the report rollup/fold logic."""
 
 import pytest
 

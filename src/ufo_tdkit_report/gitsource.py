@@ -1,4 +1,4 @@
-"""Git plumbing for the report extractor (issue #5, phase 1).
+"""Git plumbing for the report extractor.
 
 The only module that shells out. ``runner`` is injectable so the layer can be
 unit-tested with canned stdout, while integration tests use a real temp repo.

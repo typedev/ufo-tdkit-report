@@ -1,4 +1,4 @@
-"""Aggregate per-commit facts across a ``base..head`` range into release notes (issue #5, phase 4).
+"""Aggregate per-commit facts across a ``base..head`` range into release notes.
 
 Walks every commit in the range, extracts its raw facts (live, via the ``commit_facts``
 seam), nets out add-then-remove churn, then reuses the phase-1 ``fold_facts`` rollup —
@@ -58,7 +58,7 @@ def net_out(facts: list[ChangeFact]) -> tuple[list[ChangeFact], int]:
     nets to nothing ("did the release introduce this?"). Returns ``(kept, removed_count)``.
 
     Limitation: a remove-then-readd with *different* content also cancels, losing the
-    net edit. Acceptable for phase 1; non-paired fact types are never touched.
+    net edit. Accepted deliberately; non-paired fact types are never touched.
     """
     added_keys: set[tuple] = set()
     removed_keys: set[tuple] = set()

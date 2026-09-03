@@ -1,4 +1,4 @@
-"""Route a changed source file to the correct parser + differ (issue #5, phase 1).
+"""Route a changed source file to the correct parser + differ.
 
 Receives already-fetched blob strings (no git here) and returns raw ChangeFacts.
 """
