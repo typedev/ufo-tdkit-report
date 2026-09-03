@@ -311,9 +311,9 @@ def test_ls_rm_and_prune(tmp_path, monkeypatch, capsys):
     dead = _git_repo(tmp_path, "Dead")
     registry.add("live", str(live), account="default")
     registry.add("dead", str(dead))
-    import shutil
+    from conftest import rmtree
 
-    shutil.rmtree(dead)
+    rmtree(dead)
 
     assert main(["ls"]) == 0
     listing = capsys.readouterr().out

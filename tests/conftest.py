@@ -7,9 +7,31 @@ against the developer's REAL config and could overwrite their stored API key. An
 fixture makes that impossible to forget in a new test file.
 """
 
+import os
+import shutil
+import stat
+import sys
+
 import pytest
 
 from ufo_tdkit_report.config import CONFIG_DIR_VAR
+
+
+def rmtree(path) -> None:
+    """`shutil.rmtree` that also works on a git repo under Windows.
+
+    Git marks objects in `.git/objects` read-only, and Windows refuses to delete a
+    read-only file — the plain call raises `PermissionError [WinError 5]`.
+    """
+
+    def _drop_readonly(func, target, _exc):
+        os.chmod(target, stat.S_IWRITE)
+        func(target)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_drop_readonly)
+    else:
+        shutil.rmtree(path, onerror=_drop_readonly)
 
 
 @pytest.fixture(autouse=True)

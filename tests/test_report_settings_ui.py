@@ -219,9 +219,9 @@ def test_repos_screen_binds_unbinds_and_prunes(monkeypatch, tmp_path):
     dead = _repo(tmp_path, "Dead")
     registry.add("live", str(live))
     registry.add("dead", str(dead))
-    import shutil
+    from conftest import rmtree
 
-    shutil.rmtree(dead)
+    rmtree(dead)
 
     # 8 -> repos; b -> bind "live" to "work"; p -> prune; q -> back; q -> quit
     _answers(monkeypatch, "8", "b", "live", "work", "p", "q", "q")

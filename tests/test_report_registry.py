@@ -102,9 +102,9 @@ def test_remove_and_prune_report_what_went(tmp_path):
     dead = _repo(tmp_path, "Dead")
     registry.add("live", str(live))
     registry.add("dead", str(dead))
-    import shutil
+    from conftest import rmtree
 
-    shutil.rmtree(dead)
+    rmtree(dead)
     assert registry.stale() == [("dead", str(dead.resolve()))]
     assert registry.prune() == [("dead", str(dead.resolve()))]
     assert registry.stale() == []

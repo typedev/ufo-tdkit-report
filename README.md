@@ -203,10 +203,14 @@ Three files live there, and only the first one holds secrets:
 
 | file            | contents                            | permissions |
 | --------------- | ----------------------------------- | ----------- |
-| `.env`          | API keys, one per account           | `0600`      |
+| `.env`          | API keys, one per account           | `0600` *    |
 | `settings.json` | accounts: provider, model, language | —           |
 | `repos.json`    | registered repos and their bindings | —           |
 | `drafts/`       | commit-message drafts and their fingerprints, deleted once committed | — |
+
+\* `0600` on Linux and macOS. Windows has no such mode bit — `chmod` there can only
+toggle read-only — so the file is protected by the ACL of the user-profile directory it
+sits in, which is already user-only.
 
 Keys never appear in `settings.json` or `repos.json`, and **nothing tdreport-related is
 ever written inside your font repository** — not a config file, which would be committed

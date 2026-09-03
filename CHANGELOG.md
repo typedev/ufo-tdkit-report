@@ -22,6 +22,10 @@ All notable changes to this project are documented here. The format follows
   UTF-8 explicitly, as `gitsource.py` already did.
 
 ### Changed
+- Documentation no longer claims `0600` unconditionally for the key file. That is true on
+  Linux and macOS; Windows has no such mode bit — `chmod` there only toggles read-only —
+  and the file is protected by the ACL of the user-profile directory instead. The code
+  said as much already; the user-facing docs did not.
 - CI runs on **Windows** as well as Linux and macOS. `config_dir()` branches per OS and
   the Windows branch had never executed anywhere — the macOS branch had the same status
   until yesterday, and it turned out to be broken.

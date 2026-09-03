@@ -136,7 +136,7 @@ Three files in `~/.config/ufo-tdkit-report/` (`~/Library/Application Support/…
 
 | File | Contents |
 | --- | --- |
-| `.env` | **Keys only**, mode `0600`, one variable per account (`TDREPORT_KEY_WORK`) |
+| `.env` | **Keys only**, one variable per account (`TDREPORT_KEY_WORK`). Mode `0600` on Linux and macOS; on Windows there is no such mode bit, and the user-profile ACL protects it instead |
 | `settings.json` | Accounts: provider, model, language, base URL. No secrets |
 | `repos.json` | Registered repos, their bindings and overrides. No secrets |
 | `drafts/` | Drafted commit messages, removed once committed. Safe to delete |

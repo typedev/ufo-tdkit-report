@@ -4,6 +4,7 @@ Every test redirects XDG_CONFIG_HOME at a tmp dir: the config is the unit under 
 so it must never be the developer's real one. No network anywhere.
 """
 
+import os
 import stat
 
 import pytest
@@ -48,7 +49,9 @@ def test_accounts_hold_no_secret_and_keys_are_scoped():
     assert settings.account_key("default") == "sk-personal"
     # Both live in the one owner-only .env, side by side.
     env = config_env_path()
-    assert stat.S_IMODE(env.stat().st_mode) == 0o600
+    if os.name == "posix":
+        # Windows has no 0600; protection there is the user-profile ACL.
+        assert stat.S_IMODE(env.stat().st_mode) == 0o600
     assert "TDREPORT_KEY_ACME=sk-acme" in env.read_text()
     assert "TDREPORT_KEY_DEFAULT=sk-personal" in env.read_text()
 

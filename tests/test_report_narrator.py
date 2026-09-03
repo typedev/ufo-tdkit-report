@@ -5,6 +5,7 @@ an injected transport so the HTTP layer is never exercised here.
 """
 
 import json
+import os
 import stat
 
 import pytest
@@ -223,9 +224,11 @@ def test_store_api_key_writes_single_file_owner_only(tmp_path, monkeypatch):
     assert path == config_env_path()
     assert path.read_text() == "ANTHROPIC_API_KEY=sk-ant-stored\n"
     # 0600: not readable/writable by group or other.
-    mode = stat.S_IMODE(path.stat().st_mode)
-    assert mode == 0o600
-    assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+    if os.name == "posix":
+        # Windows chmod cannot express 0600; the user-profile ACL protects the file
+        # instead (see `config.secure`). The storage behaviour below is checked anyway.
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
+        assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
     # Round-trips through the resolver.
     assert resolve_api_key() == "sk-ant-stored"
 
@@ -268,7 +271,8 @@ def test_store_model_preserves_the_api_key(tmp_path, monkeypatch):
     assert resolve_api_key() == "sk-ant-rotated"
 
     # Still owner-only, and re-setting a var rewrites in place rather than appending.
-    assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    if os.name == "posix":
+        assert stat.S_IMODE(path.stat().st_mode) == 0o600
     store_model("claude-opus-5")
     assert path.read_text().count("TDREPORT_AI_MODEL=") == 1
 

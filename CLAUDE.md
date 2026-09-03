@@ -161,8 +161,10 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   every platform (tests rely on it — `XDG_CONFIG_HOME` is ignored by the macOS branch,
   which is how the suite once ran against a developer's real config and could overwrite
   their stored key). That override picks the *directory*; it does not add a source for
-  the key itself. API keys live only in `<config>/.env`, `0600`, one
-  variable per account (`TDREPORT_KEY_<ACCOUNT>`); `<config>/settings.json` and
+  the key itself. API keys live only in `<config>/.env`, one
+  variable per account (`TDREPORT_KEY_<ACCOUNT>`), `0600` where that means something —
+  Windows `chmod` can only toggle read-only, so protection there is the user-profile ACL
+  and a test asserting the mode must be POSIX-guarded; `<config>/settings.json` and
   `<config>/repos.json` hold provider/model/language/bindings and **never** a secret.
   Writes go through `config.write_dotenv_var`, which preserves every other line — never
   rewrite that file wholesale (one account's key must not drop another's). Nothing
