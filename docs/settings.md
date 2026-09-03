@@ -110,7 +110,7 @@ tdreport --ai-account work set-model gpt-5
 
 ```
 Settings — repo 'AcmeSans'
-  /home/alexander/fonts/AcmeSans
+  ~/fonts/AcmeSans
 
    1. Account    work                   from this repo
       provider   openai                 from account 'work'

@@ -195,6 +195,10 @@ key, which it reads from a **single place**: its own config directory.
 | macOS   | `~/Library/Application Support/ufo-tdkit-report/`         |
 | Windows | `%APPDATA%\ufo-tdkit-report\`                             |
 
+Set `TDREPORT_CONFIG_DIR` to put all of it somewhere else (a portable install, a test
+harness). That chooses the directory only — the API key still comes from `.env` inside
+it, or from an explicit argument, and never from the environment.
+
 Three files live there, and only the first one holds secrets:
 
 | file            | contents                            | permissions |
@@ -267,7 +271,7 @@ screen shows every value **with where it comes from**:
 
 ```
 Settings — repo 'AcmeSans'
-  /home/alexander/fonts/AcmeSans
+  ~/fonts/AcmeSans
 
    1. Account    work                   from this repo
       provider   openai                 from account 'work'

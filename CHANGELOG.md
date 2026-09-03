@@ -14,6 +14,15 @@ All notable changes to this project are documented here. The format follows
   matrix would never exercise half of that path.
 
 ### Fixed
+- **The test suite could overwrite a real config on macOS.** Isolation worked by
+  redirecting `XDG_CONFIG_HOME`, which `config_dir()` ignores on macOS — so on a Mac the
+  suite ran against the developer's actual `~/Library/Application Support/…` and, since
+  it exercises `store_api_key`, could clobber their stored API key. `config_dir()` now
+  honours `TDREPORT_CONFIG_DIR` on every platform, and an autouse fixture in
+  `conftest.py` points every test at its own directory, so a new test file cannot forget.
+  This does not weaken the key's two sources: it chooses *which directory* `.env` lives
+  in, the way `GIT_CONFIG_GLOBAL` moves git's config. **CI on macOS found this on its
+  first green-on-Linux run** — a Linux-only matrix never would have.
 - Test repositories now configure their own git identity. Several suites relied on the
   developer's global `user.name`/`user.email`; on a runner without one, 18 tests failed.
 

@@ -22,8 +22,26 @@ LEGACY_MODEL_VAR = "TDREPORT_AI_MODEL"
 CONFIG_DIR_NAME = "ufo-tdkit-report"
 
 
+CONFIG_DIR_VAR = "TDREPORT_CONFIG_DIR"
+
+
 def config_dir() -> Path:
-    """This tool's own OS-specific config directory."""
+    """This tool's own config directory: ``TDREPORT_CONFIG_DIR``, else the OS default.
+
+    The override exists on EVERY platform, and the reason is not convenience. Test
+    isolation used to work by redirecting ``XDG_CONFIG_HOME``, which the macOS branch
+    below ignores — so on a Mac the suite ran against the developer's real config and,
+    since it exercises ``store_api_key``, could overwrite their actual stored key. CI on
+    macOS caught it; a Linux-only matrix never would have.
+
+    This does not weaken the rule that the API key has exactly two sources. The key is
+    still read only from an explicit argument or from ``<config>/.env``; what this
+    chooses is *which directory* that file lives in, the way ``GIT_CONFIG_GLOBAL`` moves
+    git's config without changing what may live in it.
+    """
+    override = os.environ.get(CONFIG_DIR_VAR)
+    if override:
+        return Path(override).expanduser()
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / CONFIG_DIR_NAME
     if sys.platform.startswith("win"):

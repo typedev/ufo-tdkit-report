@@ -157,7 +157,11 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   When a named repo matches no registry entry, `AiSettings.repo_bound` is False and
   `warn_if_unbound` raises `UnboundRepoWarning` (only with 2+ accounts, where the binding
   could have mattered); silence there hides narrating on the wrong provider and key.
-- **Secrets have exactly one home.** API keys live only in `<config>/.env`, `0600`, one
+- **Secrets have exactly one home.** `config_dir()` honours `TDREPORT_CONFIG_DIR` on
+  every platform (tests rely on it — `XDG_CONFIG_HOME` is ignored by the macOS branch,
+  which is how the suite once ran against a developer's real config and could overwrite
+  their stored key). That override picks the *directory*; it does not add a source for
+  the key itself. API keys live only in `<config>/.env`, `0600`, one
   variable per account (`TDREPORT_KEY_<ACCOUNT>`); `<config>/settings.json` and
   `<config>/repos.json` hold provider/model/language/bindings and **never** a secret.
   Writes go through `config.write_dotenv_var`, which preserves every other line — never
