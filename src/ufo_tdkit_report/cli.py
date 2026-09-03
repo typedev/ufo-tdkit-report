@@ -316,6 +316,29 @@ Examples:
     return parser
 
 
+def _force_utf8_streams() -> None:
+    """Make stdout/stderr UTF-8 so redirected output survives on Windows.
+
+    Printing to a real Windows console is fine — Python writes it as UTF-16 through
+    WriteConsoleW whatever the code page is. Redirect it, though, and the stream falls
+    back to `locale.getpreferredencoding()`, which on Windows is the ANSI code page: the
+    `→` in a rendered report then raises UnicodeEncodeError. `tdreport v1..v2 > notes.md`
+    is exactly how release notes get captured, so that is not an edge case.
+
+    Python 3.15 makes UTF-8 mode the default (PEP 686) and this becomes a no-op, but the
+    floor here is 3.10. Skipped when a stream is already UTF-8 or cannot be reconfigured
+    (a captured stream under pytest, a redirect installed by an embedding tool).
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = getattr(stream, "encoding", "") or ""
+        if encoding.lower().replace("-", "") == "utf8":
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def _present_warnings_as_notes() -> None:
     """Render this tool's own warnings as plain CLI notes, not Python tracebacks.
 
@@ -348,6 +371,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from ufo_tdkit_report import NarratorError
 
+    _force_utf8_streams()
     _present_warnings_as_notes()
 
     # --- registry: `tdreport add <name> <path>` ---

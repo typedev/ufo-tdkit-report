@@ -651,5 +651,53 @@ def subprocess_head(repo):
     ).stdout.strip()
 
 
+def test_redirected_output_survives_a_legacy_code_page():
+    """On Windows a redirected stream falls back to the ANSI code page, not UTF-8.
+
+    The rendered report contains `→`, and `tdreport v1..v2 > notes.md` is exactly how
+    release notes are captured — so this is the normal path, not an edge case.
+    """
+    import io
+    import sys
+
+    from ufo_tdkit_report.cli import _force_utf8_streams
+
+    line = "## Source changes: v1 → HEAD"
+    raw = io.BytesIO()
+    original = sys.stdout
+    try:
+        sys.stdout = io.TextIOWrapper(raw, encoding="cp1251", errors="strict")
+        with pytest.raises(UnicodeEncodeError):
+            print(line)
+            sys.stdout.flush()
+
+        raw = io.BytesIO()
+        sys.stdout = io.TextIOWrapper(raw, encoding="cp1251", errors="strict")
+        _force_utf8_streams()
+        print(line)
+        sys.stdout.flush()
+        assert raw.getvalue().decode("utf-8").strip() == line
+    finally:
+        sys.stdout = original
+
+
+def test_forcing_utf8_leaves_an_already_utf8_stream_alone():
+    import io
+    import sys
+
+    from ufo_tdkit_report.cli import _force_utf8_streams
+
+    original = sys.stdout
+    try:
+        sys.stdout = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+        before = sys.stdout.encoding
+        _force_utf8_streams()
+        assert sys.stdout.encoding == before
+    finally:
+        sys.stdout = original
+    # And a stream that cannot be reconfigured is simply left as it is.
+    _force_utf8_streams()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

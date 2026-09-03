@@ -7,7 +7,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- **Redirected output no longer dies on Windows.** Printing to a real Windows console is
+  fine — Python writes it as UTF-16 through `WriteConsoleW` whatever the code page is.
+  Redirect it and the stream falls back to `locale.getpreferredencoding()`, the ANSI code
+  page, where the `→` in a rendered report raises `UnicodeEncodeError`. Since
+  `tdreport v1..v2 > notes.md` is how release notes are captured, that is the normal
+  path. The CLI now reconfigures its own streams to UTF-8, skipping streams that are
+  already UTF-8 or cannot be reconfigured. (Python 3.15 makes UTF-8 mode the default and
+  this becomes a no-op; the floor here is 3.10.)
+- **A repo path with non-ASCII characters no longer comes back mojibake on Windows.**
+  `commit.py` ran git with `text=True` and no encoding, so output was decoded with the
+  locale encoding — and `rev-parse --show-toplevel` goes through it. It now decodes
+  UTF-8 explicitly, as `gitsource.py` already did.
+
+### Changed
+- CI runs on **Windows** as well as Linux and macOS. `config_dir()` branches per OS and
+  the Windows branch had never executed anywhere — the macOS branch had the same status
+  until yesterday, and it turned out to be broken.
 
 ## [0.4.0] - 2026-09-03
 

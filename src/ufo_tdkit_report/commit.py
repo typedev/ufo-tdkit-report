@@ -38,8 +38,17 @@ LEGACY_RELDIR = ".tdreport"
 
 
 def _git(repo: str, *args: str, input_text: str | None = None):
+    # `text=True` alone decodes with the locale encoding, which on Windows is the ANSI
+    # code page — a repo path with non-ASCII characters would come back mojibake, and
+    # `rev-parse --show-toplevel` goes through here. Be explicit, as gitsource.py is.
     return subprocess.run(
-        ["git", "-C", repo, *args], capture_output=True, text=True, input=input_text, check=False
+        ["git", "-C", repo, *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        input=input_text,
+        check=False,
     )
 
 

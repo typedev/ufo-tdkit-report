@@ -17,10 +17,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The floor from `requires-python` and the current release, on both platforms
-        # that matter here: `config_dir()` branches per OS, and font work is heavily
-        # macOS, so a Linux-only matrix would never exercise half of that path.
-        os: [ubuntu-latest, macos-latest]
+        # The floor from `requires-python` and the current release, on all three
+        # platforms: `config_dir()` branches per OS, font work is heavily macOS, and on
+        # Windows a redirected stream falls back to the ANSI code page. A Linux-only
+        # matrix exercised none of that — and the macOS jobs found a real bug the first
+        # time they ran.
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python: ["3.10", "3.13"]
 
     steps:
