@@ -7,7 +7,55 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- **AI narration is now the default, and the tool is positioned around it.** `tdreport`
+  drafts the commit message or the release notes; the deterministic semantic diff is what
+  makes that trustworthy rather than what the tool is for. `--ai-note` is no longer needed
+  — it is accepted and ignored, so existing scripts, hooks and docs keep working — and
+  `--no-ai` is the way to ask for the facts alone. `--json` implies it, since a narrative
+  is not part of `to_dict()`.
+- **The fallback is loud, and it is a fallback rather than a failure.** A provider that is
+  unconfigured, unreachable or unhappy costs you the prose, not the report: the facts cost
+  nothing to produce and are the ground truth. The note explaining it goes to **stderr**,
+  so stdout stays the byte-stable artefact a pipe or a redirect expects — output that
+  quietly depended on whether a key happened to be present would be exactly the invisible
+  difference this tool exists to remove. An unregistered repo now also raises its
+  `UnboundRepoWarning` on this path, because resolving to the default account is the
+  likeliest reason a key the owner *does* have was not the one looked for.
+
+### Added
+- **The key file's permissions are checked when it is read**, not only set when it is
+  written. `0600` at write time is not `0600` forever: `cp -r` of a dotfiles directory, a
+  restored backup, an unpacked archive or a permissive `umask` all widen it afterwards,
+  and nothing said so. A widened file now raises `InsecureKeyFileWarning` — one readable
+  note naming the mode and the `chmod` that fixes it — once per path per run, on the read
+  path every consumer of the key passes through. It states the problem and continues
+  rather than refusing as `ssh` does: the condition is one command away from fixed, and
+  stranding a run over it helps nobody. POSIX only; Windows `chmod` toggles read-only and
+  the mode bits carry no meaning there.
+- **`--ai` requires the narrative**, failing instead of falling back — for CI that
+  publishes the prose and has no use for a report it did not ask for. `--ai` with `--json`
+  is an argument error rather than a silent choice between them.
+- **`describe_changes()`** is the CLI's default behaviour as one library call: extract,
+  narrate, fall back to the render. It is the **only** public call that may touch the
+  network. `extract_facts` / `aggregate_range` / `commit_facts` stay pure and offline
+  deliberately — they get embedded in build pipelines, where a fact extractor making a
+  paid call on its own initiative is not a reasonable default — and a test now pins that
+  boundary rather than leaving it to memory.
+- The test suite blocks off-machine HTTP (`conftest.py`, at `urlopen`; loopback exempt).
+  With narration defaulted on, a test running the CLI while a key was stored would have
+  made a real paid call — one already did. It also makes the tests that assert *offline*
+  behaviour deterministic: they used to pass or fail depending on the machine's network.
+
 ### Fixed
+- **A resolved `AiSettings` printed the API key verbatim.** It is a frozen dataclass and
+  it carries a live key, so the generated `__repr__` rendered the value — into a traceback
+  frame, a pytest failure dump (pytest prints locals), a debugger, or any `print()` during
+  a bug hunt. None of those is a place anyone chose to put a secret, and a CI log is
+  forever. `__repr__` is now hand-written and masks the key to `set (…1234)`, which is
+  still enough to tell two keys apart. A new `tests/test_report_secrets.py` sweeps for the
+  value across every rendering and every file the tool writes, rather than trusting a
+  reading of the code: the audit that found this one started as a read and missed it.
 - **The repo settings screen pointed at the wrong option for a missing key.** With no key
   on the account it printed `option 1, or 4 to set one`, but option 4 has been Grounding
   since that row was added — the key is set through option 5, the account screen. Anyone

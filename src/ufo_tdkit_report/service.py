@@ -169,3 +169,61 @@ def commit_facts(repo: str, sha: str, *, family: str | None = None):
     git = GitSource(str(repo))
     facts, _ = _extract_raw(git, f"{sha}~1", sha, family=family)
     return facts
+
+
+def describe_changes(
+    repo: str,
+    target: str,
+    *,
+    notes: bool = False,
+    ai: bool = True,
+    threshold: int = DEFAULT_THRESHOLD,
+    profile: str | None = None,
+    schema=None,
+    model: str | None = None,
+    provider: str | None = None,
+    language: str | None = None,
+    account: str | None = None,
+    api_key: str | None = None,
+    strict_grounding: bool | None = None,
+    max_tokens: int | None = None,
+) -> str:
+    """Extract the changes and return them as text — narrated when that is possible.
+
+    This is the CLI's default behaviour offered to library callers, and it is the ONLY
+    function here that touches the network. :func:`extract_facts`, :func:`aggregate_range`
+    and :func:`commit_facts` stay pure and offline, because callers embed them in build
+    pipelines where a paid call is not a reasonable thing for a fact extractor to make on
+    its own. Compose deliberately, or call this.
+
+    ``ai=False`` skips narration outright. Otherwise a provider that is unconfigured,
+    unreachable or unhappy costs the prose, not the report: the deterministic render is
+    returned instead. Callers who would rather see the failure should catch it — call
+    :func:`narrate` themselves, where a :class:`NarratorError` is raised rather than
+    absorbed.
+
+    Every AI argument left as ``None`` resolves through ``settings.resolve_ai_settings``,
+    so the owner's account, per-repo binding, model and language apply exactly as they do
+    on the command line.
+    """
+    from ufo_tdkit_report.aggregate import aggregate_range
+
+    if notes:
+        report = aggregate_range(repo, target, threshold=threshold, profile=profile, schema=schema)
+    else:
+        report = extract_facts(repo, target, threshold=threshold, profile=profile, schema=schema)
+    if not ai:
+        return report.render_text()
+
+    from ufo_tdkit_report.narrator import NarratorError, narrate
+
+    options = dict(
+        model=model, provider=provider, language=language, account=account,
+        api_key=api_key, strict_grounding=strict_grounding, repo=repo,
+    )
+    if max_tokens is not None:
+        options["max_tokens"] = max_tokens
+    try:
+        return narrate(report, **options)
+    except NarratorError:
+        return report.render_text()

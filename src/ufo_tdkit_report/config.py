@@ -13,6 +13,7 @@ touching (the file holds several accounts' secrets side by side).
 from __future__ import annotations
 
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -70,6 +71,55 @@ def secure(path: Path) -> None:
         pass
 
 
+class InsecureKeyFileWarning(UserWarning):
+    """The file holding API keys is readable by someone other than its owner.
+
+    Its own category so a console front-end can render it as one readable note and a
+    library consumer can route it somewhere useful, like every other warning here.
+    """
+
+
+_warned_about: set[str] = set()
+
+
+def warn_if_world_readable(path: Path) -> bool:
+    """Warn — once per path per process — if the key file is not owner-only.
+
+    `secure()` sets 0600 when the file is written, but a file does not stay as it was
+    written: `cp -r` of a dotfiles directory, restoring a backup with a permissive
+    `umask`, unpacking an archive, or a synced folder can all widen it afterwards, and
+    nothing would say so. `ssh` refuses outright in this situation; refusing here would
+    strand someone mid-run over a condition they can fix in one command, so this states
+    it and continues — a constatation, not a verdict, as with the grounding findings.
+
+    POSIX only: Windows `chmod` toggles read-only and nothing else, so the mode bits
+    carry no meaning there and the user-profile ACL is what protects the file.
+    Returns True if a warning was issued.
+    """
+    if os.name == "nt":
+        return False
+    key = str(path)
+    if key in _warned_about:
+        return False
+    try:
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except OSError:
+        return False
+    leaked = mode & (stat.S_IRWXG | stat.S_IRWXO)
+    if not leaked:
+        return False
+    _warned_about.add(key)
+    import warnings
+
+    warnings.warn(
+        f"{path} holds your API keys but is readable by others (mode {mode:04o}). "
+        f"Fix it with `chmod 600 {path}`.",
+        InsecureKeyFileWarning,
+        stacklevel=2,
+    )
+    return True
+
+
 def read_dotenv_key(paths: list[Path], var: str = LEGACY_KEY_VAR) -> str | None:
     """Read a single env var from the first existing ``.env`` file in ``paths``.
 
@@ -80,6 +130,7 @@ def read_dotenv_key(paths: list[Path], var: str = LEGACY_KEY_VAR) -> str | None:
     for path in paths:
         if not path.is_file():
             continue
+        warn_if_world_readable(path)
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except OSError:

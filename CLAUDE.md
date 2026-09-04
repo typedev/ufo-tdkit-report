@@ -5,12 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 `ufo-tdkit-report` (CLI: `tdreport`) is a deterministic, git-centric source-change
-extractor for UFO / designspace font projects. It diffs font **sources** semantically
-(formatting-agnostic) and compresses the changes into a few facts, catching outline
-redraws and feature-rule changes a binary font diff misses. It shells out to `git` but
-depends on no particular font compiler. Optionally it drafts a grounded commit message or
-release notes through any of several AI providers — Claude, GPT, Gemini, Grok, Mistral,
-Groq, DeepSeek, Qwen, Kimi, GLM, or a local model — all opt-in.
+narrator for UFO / designspace font projects. **The product is the drafted commit message
+and the release notes**; the deterministic extractor underneath is what makes them
+trustworthy. It diffs font **sources** semantically (formatting-agnostic) and compresses
+the changes into a few facts, catching outline redraws and feature-rule changes a binary
+font diff misses. It shells out to `git` but depends on no particular font compiler.
+Narration goes through any of several AI providers — Claude, GPT, Gemini, Grok, Mistral,
+Groq, DeepSeek, Qwen, Kimi, GLM, or a local model.
 
 ## Commands
 
@@ -43,8 +44,12 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
 
 - **`service.py`** is the orchestration seam. `extract_facts` (committed range),
   `extract_working_facts` (uncommitted tree), and `commit_facts` (one commit) are the
-  public API re-exported from `__init__.py`. Nothing below `service` prints; rendering is
-  separate. **What a public call can *raise* belongs in `__init__.__all__` too**, not just
+  public API re-exported from `__init__.py`, and they are **pure and offline** — callers
+  embed them in build pipelines, where a fact extractor spending money on its own
+  initiative is not a reasonable default. `describe_changes` is the composition (extract,
+  then narrate, falling back to the render) and the **only** public call that may touch
+  the network; `tests/test_report_public_api.py` pins that boundary. Nothing below
+  `service` prints; rendering is separate. **What a public call can *raise* belongs in `__init__.__all__` too**, not just
   what it can call — `NarratorError`, `GroundingWarning`, `UnboundRepoWarning`. An
   exception reachable only via `narrator`/`settings` pins the consumer to the internal
   layout, so moving that class reads as an ordinary refactor here and breaks them there;
@@ -75,7 +80,7 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   add-then-remove churn (`net_out`), then reuses `fold_facts` — producing release notes.
 - **`render.py`** turns reports into text/markdown and owns the attribution footer.
   `SourceReport.render_text()` / `RangeReport.render_text()` delegate here.
-- **`narrator.py`** is the opt-in AI layer: prompts, grounding rules, HTTP plumbing.
+- **`narrator.py`** is the AI layer: prompts, grounding rules, HTTP plumbing.
   See its constraints below.
 - **`providers.py`** is the provider table and the two dialect adapters (`anthropic`
   Messages, OpenAI-compatible `/chat/completions`). Pure — payload/header building and
@@ -138,6 +143,19 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   `fold_facts(..., schema=...)` / the `schema=` param on the public extract/aggregate API
   (duck-typed `schema.get(key).consequence_text(off)`). Without a schema, profile changes
   render as a bare option diff. Do not hardcode option meanings.
+- **AI by default at the CLI, explicit in the library.** Narration is what `tdreport`
+  is *for*, so the CLI narrates unless told otherwise (`--no-ai`, `--json`, or nothing
+  configured); `--ai-note` survives as an accepted no-op so pre-0.5 scripts keep working.
+  The library does **not** follow: `extract_facts`/`aggregate_range`/`commit_facts` stay
+  offline and `describe_changes` is the opt-in composition. Don't collapse that — an
+  embedding build tool must be able to extract facts without a paid call.
+- **The fallback is loud.** Unconfigured, unreachable or unhappy provider ⇒ the
+  deterministic report, never nothing — the facts cost nothing and are the ground truth.
+  But the note explaining it goes to **stderr**, because stdout must stay the byte-stable
+  report a pipe expects, and it is never silent: output that quietly depends on whether a
+  key happens to be present is the exact class of invisible difference this tool exists
+  to remove. `--ai` inverts it for callers who want the failure (CI publishing the prose).
+  `_narration_wanted` / `_no_narration` in `cli.py` are the single place that decides.
 - **Grounded, non-publishing AI.** `narrator.py` may only restate the facts it is given —
   never invent a glyph/codepoint/option name or meaning. The deterministic facts are always
   attached verbatim in a `<details>` block for verification, and this layer never
@@ -174,6 +192,16 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   `<config>/repos.json` hold provider/model/language/bindings and **never** a secret.
   Writes go through `config.write_dotenv_var`, which preserves every other line — never
   rewrite that file wholesale (one account's key must not drop another's). Nothing
+  Anything that *holds* a live key must not render it: `AiSettings` carries one, so its
+  `__repr__` is hand-written to mask it. A dataclass repr would print the key verbatim
+  into a traceback frame, a pytest failure dump (pytest prints locals), a debugger or a
+  stray `print()` — none of which anyone chose as a place to put a secret. Don't replace
+  it with the generated repr, and give any future key-carrying object the same treatment;
+  `tests/test_report_secrets.py` sweeps for the value rather than trusting a reading of
+  the code. Permissions are checked on **read** (`config.warn_if_world_readable`), not
+  only set on write — a file does not stay as it was written, and the read path is the
+  one every consumer of the key passes through. It warns rather than refusing, POSIX
+  only. Nothing
   tdreport-related is written **inside the font repository**: a config file there would
   be committed and shared, which is how keys leak. That now includes the drafted commit
   message (`<config>/drafts/<repo>/`) — keeping it in `<repo>/.tdreport/` meant appending
@@ -257,7 +285,12 @@ on GitHub" while every commit is in fact pushed.
 Tests pair fast unit tests (an injected fake `runner`/`transport`, canned stdout) with
 integration tests that build a real temp git repo via `subprocess` + `tmp_path`. When
 touching `gitsource.py` or `narrator.py`, prefer the injection seams over real network/git
-in unit tests. One test file per module (`tests/test_report_<module>.py`), plus a
+in unit tests. A `conftest.py` fixture makes `urllib.request.urlopen` raise `URLError` for
+anything off-machine (loopback exempt, for the end-to-end test): narration being the CLI
+default means a test running `main()` with a key stored would otherwise make a real paid
+call, and several tests assert *offline* behaviour that used to pass or fail depending on
+the machine's network. Patch at `urlopen`, never `narrator._http_post` — the transports
+are bound as default arguments, the same trap noted below for `list_models`. One test file per module (`tests/test_report_<module>.py`), plus a
 few that follow a *property* rather than a module — `test_report_constatation.py` (T3),
 `test_report_version.py`, `test_report_public_api.py` — because the thing they protect
 would otherwise have no owner.

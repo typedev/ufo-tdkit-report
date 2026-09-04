@@ -100,6 +100,31 @@ class AiSettings:
     # was. False is the dangerous case: settings silently came from the default account.
     repo_bound: bool | None = None
 
+    def __repr__(self) -> str:
+        """Never the key itself — a dataclass repr would print it verbatim.
+
+        This object holds a live API key and ends up in places nobody chose to put it:
+        a traceback frame, a pytest failure dump (which prints locals), a debugger, a
+        `print()` during a bug hunt. Any one of those copies the key into a terminal
+        scrollback or a CI log. The masked tail is still enough to tell two keys apart,
+        which is the only thing a reader legitimately needs here. The provider is
+        rendered by name for the same reason the mask exists: a full `Provider` dump
+        buries the fields that matter in a model list.
+        """
+        return (
+            f"AiSettings(account={self.account!r}, provider={self.provider.name!r}, "
+            f"model={self.model!r}, language={self.language!r}, base_url={self.base_url!r}, "
+            f"api_key={self.masked_api_key!r}, strict_grounding={self.strict_grounding!r}, "
+            f"repo_bound={self.repo_bound!r})"
+        )
+
+    @property
+    def masked_api_key(self) -> str:
+        """Safe to print: presence and the last four characters, never the value."""
+        if not self.api_key:
+            return "not set"
+        return f"set (…{self.api_key[-4:]})" if len(self.api_key) > 4 else "set"
+
     @property
     def provider_name(self) -> str:
         return self.provider.name

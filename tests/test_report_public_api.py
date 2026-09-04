@@ -57,3 +57,26 @@ def test_the_root_categories_catch_what_the_library_actually_raises():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_describe_changes_is_the_only_public_call_that_may_touch_the_network(tmp_path):
+    """The composition is opt-in; the extractors stay pure.
+
+    `extract_facts` and friends are embedded in build pipelines, where a paid model call
+    is not a reasonable thing for a fact extractor to make on its own initiative. Making
+    narration the CLI default must not quietly change that, so this pins the boundary:
+    the new convenience is the one that narrates, and the old ones still cannot.
+    """
+    import inspect as _inspect
+
+    assert "describe_changes" in pkg.__all__
+    for name in ("extract_facts", "extract_working_facts", "aggregate_range", "commit_facts"):
+        source = _inspect.getsource(getattr(pkg, name))
+        assert "narrate" not in source, f"{name} must not narrate"
+
+    signature = _inspect.signature(pkg.describe_changes)
+    assert signature.parameters["ai"].default is True
+    # The resolution chain owns every AI setting: a concrete default here would silently
+    # bypass the owner's account and model (CLAUDE.md's one-resolution-chain invariant).
+    for name in ("model", "provider", "language", "account", "strict_grounding"):
+        assert signature.parameters[name].default is None

@@ -130,6 +130,82 @@ def _registry_name_for(repo: str) -> str | None:
     return registry.name_for_path(repo)
 
 
+def _repo_path(selector):
+    """The repository a selector points at, or None when it cannot be resolved.
+
+    Only used to give the settings resolver a repo whose binding to honour. An
+    unresolvable selector is not reported here — `inspect` raises for it a moment later
+    with a better message, and this must not pre-empt that with a worse one.
+    """
+    from ufo_tdkit_report.commit import resolve_repo
+
+    try:
+        return resolve_repo(selector)
+    except RuntimeError:
+        return None
+
+
+def _no_narration(args, why: str, fix: str = "") -> bool:
+    """Report why there is no narrative, and whether that is fatal.
+
+    The deterministic facts are the ground truth and they cost nothing to produce, so a
+    provider that is unconfigured, unreachable or unhappy costs you the prose, not the
+    report. `--ai` is for the caller who would rather fail than receive the quieter
+    output — CI that publishes the prose has no use for a report it did not ask for.
+    The note goes to stderr, so stdout stays exactly the byte-stable report.
+    """
+    if args.require_ai:
+        from ufo_tdkit_report import NarratorError
+
+        raise NarratorError(f"--ai was requested but the narrative cannot be produced: {why}")
+    print(f"note: {why}, so this is the deterministic report only."
+          f"{' ' + fix + '.' if fix else ''}", file=sys.stderr)
+    return False
+
+
+def _narration_wanted(args, ai_opts, repo=None) -> bool:
+    """Whether this run narrates. AI is the default; three things turn it off.
+
+    `--no-ai` and `--json` are the caller saying so — the first outright, the second
+    because JSON is the machine-readable *facts* and a narrative is not part of them.
+    The third is having nothing to narrate with, and that one is **announced**: falling
+    back silently would make the same command on the same repository print different
+    things depending on whether a key happens to be configured, which is exactly the
+    kind of invisible difference this tool exists to remove. The note goes to stderr so
+    the report on stdout stays byte-stable and pipeable.
+    """
+    if args.no_ai:
+        return False
+    if args.json_output:
+        return False
+    from ufo_tdkit_report import NarratorError, resolve_ai_settings
+    from ufo_tdkit_report.settings import warn_if_unbound
+
+    try:
+        resolved = resolve_ai_settings(
+            repo=repo, account=ai_opts.get("account"), provider=ai_opts.get("provider"),
+            model=ai_opts.get("model"), language=ai_opts.get("language"),
+        )
+    except NarratorError as exc:  # an unknown provider or account named on the command line
+        return _no_narration(args, str(exc))
+    # Say this even when we are about to fall back — an unregistered repo resolving to the
+    # default account is the likeliest reason a key the owner *has* was not the one looked
+    # for, so it explains the fallback rather than merely accompanying it.
+    if repo:
+        warn_if_unbound(resolved, repo)
+    if resolved.provider.requires_key and not resolved.api_key:
+        return _no_narration(
+            args, f"no API key for provider '{resolved.provider_name}'",
+            fix="`tdreport set-key` enables the narrative; `--no-ai` silences this note",
+        )
+    if not resolved.model:
+        return _no_narration(
+            args, f"no model chosen for provider '{resolved.provider_name}'",
+            fix="`tdreport set-model` enables the narrative",
+        )
+    return True
+
+
 def _do_commit(selector, args, ai_opts, do_commit) -> int:
     """Commit, resolving a stale draft first: ask on a TTY, refuse in a pipe.
 
@@ -142,8 +218,14 @@ def _do_commit(selector, args, ai_opts, do_commit) -> int:
 
     stale_ok = args.stale_ok
     try:
-        state = draft_state(resolve_repo(selector))
+        repo_path = resolve_repo(selector)
+        state = draft_state(repo_path)
     except RuntimeError as exc:
+        print(f"error: {exc}")
+        return 1
+    try:
+        use_ai = _narration_wanted(args, ai_opts, repo=repo_path)
+    except NarratorError as exc:
         print(f"error: {exc}")
         return 1
 
@@ -156,11 +238,11 @@ def _do_commit(selector, args, ai_opts, do_commit) -> int:
         print("The working tree changed since this draft was written, so it no longer")
         print("describes what would be committed.")
         if state.ai:
-            print("(this draft was written by AI — redrafting needs `--ai-note` to stay prose)")
+            print("(this draft was written by AI — redrafting without `--no-ai` keeps it prose)")
         answer = (_prompt_line("  [r]edraft, [c]ommit anyway, [a]bort? ") or "a").lower()
         if answer.startswith("r"):
             try:
-                _, text, _ = inspect(selector, ai=args.ai_note, regenerate=True, **ai_opts)
+                _, text, _ = inspect(selector, ai=use_ai, regenerate=True, **ai_opts)
             except (NarratorError, RuntimeError) as exc:
                 print(f"error: {exc}")
                 return 1
@@ -175,7 +257,7 @@ def _do_commit(selector, args, ai_opts, do_commit) -> int:
             return 0
 
     try:
-        rc, msg = do_commit(selector, ai=args.ai_note, allow_stale=stale_ok, **ai_opts)
+        rc, msg = do_commit(selector, ai=use_ai, allow_stale=stale_ok, **ai_opts)
     except (NarratorError, RuntimeError) as exc:
         print(f"error: {exc}")
         return 1
@@ -214,24 +296,24 @@ def _is_range(arg: str | None) -> bool:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tdreport",
-        description="Deterministic UFO/designspace source-change extractor & narrator",
+        description="AI-narrated source-change reports for UFO/designspace fonts, grounded in a deterministic diff",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   tdreport                       # commit assistant: draft a message for the cwd repo's working tree
-  tdreport --ai-note             # same, narrated by a grounded AI
+  tdreport --no-ai               # same, deterministic facts only (no model call)
   tdreport commit                # commit the cwd working tree with the drafted message
   tdreport myfont                # commit assistant for a registered repo (see `add`)
   tdreport myfont commit         # commit a registered repo's working tree
   tdreport ~/fonts/MyFont        # commit assistant for an explicit repo path
   tdreport add myfont ~/fonts/MyFont   # register a name -> repo path
-  tdreport set-provider           # pick the AI provider (Claude, GPT, Grok, DeepSeek, Qwen, local...)
-  tdreport set-key sk-...         # store that provider's API key, owner-only, for --ai-note
-  tdreport set-model              # pick the --ai-note model from a menu of available ones
+  tdreport set-provider           # pick the AI provider (Claude, GPT, Gemini, Grok, local...)
+  tdreport set-key sk-...         # store that provider's API key, owner-only
+  tdreport set-model              # pick the narration model from a menu of available ones
   tdreport set-lang Spanish       # AI prose language (the deterministic facts stay English)
   tdreport set-grounding strict   # refuse a narration the facts do not support (default: warn)
   tdreport set-url http://localhost:8000/v1   # a custom OpenAI-compatible endpoint
-  tdreport --ai-note --ai-max-tokens 16000    # room for a reasoning model to think first
+  tdreport --ai-max-tokens 16000  # room for a reasoning model to think before it writes
   tdreport settings               # interactive screen for all of the above
   tdreport settings MyFont        # …scoped to one repo: what applies to it, and from where
   tdreport ls / rm <name> / prune # registered repos: list, forget, drop dead entries
@@ -260,15 +342,25 @@ Examples:
     parser.add_argument("--profile", help="path to a build-profile YAML to record in the report header")
     parser.add_argument("--threshold", type=int, default=12, help="fold detail into stats above this count")
     parser.add_argument("--json", dest="json_output", action="store_true", help="emit the report as JSON")
-    parser.add_argument(
-        "--ai-note", action="store_true",
-        help="add a grounded AI narrative (opt-in; needs a key via `tdreport set-key`; never publishes)",
+    ai_group = parser.add_mutually_exclusive_group()
+    ai_group.add_argument(
+        "--no-ai", action="store_true",
+        help="deterministic facts only, no AI narrative (also implied by --json, and by "
+             "having no AI account configured)",
     )
+    ai_group.add_argument(
+        "--ai", dest="require_ai", action="store_true",
+        help="require the narrative: fail instead of falling back to the deterministic "
+             "report when it cannot be produced (for CI that needs the prose)",
+    )
+    # The pre-0.5 spelling of what is now the default. Accepted and ignored so existing
+    # scripts, hooks and docs keep working; hidden so --help teaches the current shape.
+    parser.add_argument("--ai-note", action="store_true", help=argparse.SUPPRESS)
     from ufo_tdkit_report.narrator import DEFAULT_MODEL
 
     parser.add_argument(
         "--ai-model", default=None,
-        help=f"model for --ai-note, overriding `tdreport set-model` (built-in default: {DEFAULT_MODEL})",
+        help=f"narration model, overriding `tdreport set-model` (built-in default: {DEFAULT_MODEL})",
     )
     from ufo_tdkit_report.providers import PROVIDERS
 
@@ -276,11 +368,11 @@ Examples:
         "--ai-provider", default=None,
         # Spelled from the table, not by hand: a hardcoded list here goes stale the next
         # time a row is added, and this help text is where people look for the names.
-        help=f"provider for --ai-note, overriding the account's ({', '.join(PROVIDERS)})",
+        help=f"narration provider, overriding the account's ({', '.join(PROVIDERS)})",
     )
     parser.add_argument(
         "--ai-lang", default=None,
-        help="language for the --ai-note prose, e.g. Spanish (the deterministic facts stay English)",
+        help="language for the AI prose, e.g. Spanish (the deterministic facts stay English)",
     )
     parser.add_argument(
         "--ai-account", default=None,
@@ -299,7 +391,7 @@ Examples:
     )
     parser.add_argument(
         "--ai-max-tokens", type=int, default=None,
-        help=f"completion cap for --ai-note (default {DEFAULT_MAX_TOKENS}); a reasoning model "
+        help=f"completion cap for the narration (default {DEFAULT_MAX_TOKENS}); a reasoning model "
              f"spends this budget on thinking before it writes anything",
     )
     parser.add_argument("-y", "--yes", action="store_true", help="auto-confirm the 'commit this?' prompt")
@@ -352,10 +444,11 @@ def _present_warnings_as_notes() -> None:
     """
     import warnings
 
+    from ufo_tdkit_report.config import InsecureKeyFileWarning
     from ufo_tdkit_report.narrator import GroundingWarning
     from ufo_tdkit_report.settings import UnboundRepoWarning
 
-    ours = (UnboundRepoWarning, GroundingWarning)
+    ours = (UnboundRepoWarning, GroundingWarning, InsecureKeyFileWarning)
     original = warnings.formatwarning
 
     def _format(message, category, filename, lineno, line=None):
@@ -369,7 +462,13 @@ def _present_warnings_as_notes() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = _build_parser().parse_args(argv)
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+    if args.require_ai and args.json_output:
+        # Not a fallback decision — the two flags ask for different artefacts, and
+        # picking one silently would be answering a question nobody asked.
+        parser.error("--ai and --json ask for different things: --json emits the "
+                     "deterministic facts, and a narrative is not part of them")
     import json
 
     from ufo_tdkit_report import NarratorError
@@ -789,15 +888,26 @@ def main(argv: list[str] | None = None) -> int:
 
             report = extract_facts(args.repo, args.target, threshold=args.threshold, profile=args.profile)
 
-        if args.ai_note:
+        try:
+            narrating = _narration_wanted(args, ai_opts, repo=args.repo)
+        except NarratorError as exc:
+            print(f"error: {exc}")
+            return 1
+        if narrating:
             from ufo_tdkit_report import narrate
 
             try:
                 print(narrate(report, repo=args.repo, **ai_opts))
+                return 0
             except NarratorError as exc:
-                print(f"error: AI narration failed: {exc}")
-                return 1
-            return 0
+                # The call was attempted and failed — a bad key, an outage, a refusal. The
+                # facts are already extracted and cost nothing, so print the report rather
+                # than nothing at all; `--ai` is how a caller says it wants the failure.
+                if args.require_ai:
+                    print(f"error: AI narration failed: {exc}")
+                    return 1
+                print(f"note: AI narration failed ({exc}); deterministic report follows.",
+                      file=sys.stderr)
         print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False) if args.json_output else report.render_text())
         return 0
 
@@ -823,9 +933,20 @@ def main(argv: list[str] | None = None) -> int:
         return _do_commit(selector, args, ai_opts, do_commit)
 
     try:
-        repo, text, has_changes = inspect(
-            selector, ai=args.ai_note, regenerate=args.regenerate, **ai_opts
-        )
+        wants_ai = _narration_wanted(args, ai_opts, repo=_repo_path(selector))
+        try:
+            repo, text, has_changes = inspect(
+                selector, ai=wants_ai, regenerate=args.regenerate, **ai_opts,
+            )
+        except NarratorError as exc:
+            if args.require_ai or not wants_ai:
+                raise
+            # Same bargain as the range path: the draft is worth having without the prose.
+            # Re-running costs another extraction, never another model call.
+            print(f"note: AI narration failed ({exc}); drafting without it.", file=sys.stderr)
+            repo, text, has_changes = inspect(
+                selector, ai=False, regenerate=args.regenerate, **ai_opts,
+            )
     except (NarratorError, RuntimeError) as exc:
         print(f"error: {exc}")
         return 1

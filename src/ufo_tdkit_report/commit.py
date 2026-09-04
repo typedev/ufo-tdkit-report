@@ -2,7 +2,7 @@
 
 `tdreport` (or `tdreport <repo>`) inspects the working tree vs HEAD, prints a drafted
 commit message and writes it to an editable file; `tdreport <repo> commit` commits with
-that file (generating it first if absent). Deterministic by default; `--ai-note` runs the
+that file (generating it first if absent). AI-narrated by default; `--no-ai` skips the
 grounded commit narrator. The repo is the cwd, a registered name, or an explicit path.
 
 The draft lives in the tool's own config directory, NOT inside the font repository. It
@@ -13,7 +13,7 @@ a repository now; the same rule the accounts and bindings already follow.
 
 Not a temp directory either: between drafting and committing an hour can pass, and
 `/tmp` is cleared on reboot. Re-generating a deterministic draft is free, but an
-`--ai-note` draft cost a paid model call.
+an AI-narrated draft cost a paid model call.
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ class DraftState:
     Two independent questions, because they have different answers and different costs:
 
     ``edited``  — the file differs from the text tdreport produced, so a human changed it.
-                  Overwriting that silently loses their words, and for an ``--ai-note``
+                  Overwriting that silently loses their words, and for an AI-narrated
                   draft it also throws away a paid model call.
     ``stale``   — the working tree no longer produces the facts this draft describes.
                   Committing it would put a wrong description of the change into git
@@ -261,7 +261,7 @@ def commit(
         # it was THEN. Shipping the two together writes a wrong description into history.
         state = draft_state(repo)
         if state.stale and not allow_stale:
-            hint = " (it was AI-written; add `--ai-note`)" if state.ai else ""
+            hint = " (it was AI-written; drop `--no-ai` to keep it prose)" if state.ai else ""
             return 1, (
                 f"the working tree changed since this draft was written, so it no longer "
                 f"describes what would be committed. Redraft with `tdreport "

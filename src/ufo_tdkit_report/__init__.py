@@ -25,6 +25,7 @@ except PackageNotFoundError:  # running from a source tree without an install
     __version__ = "0.0.0+unknown"
 
 from ufo_tdkit_report.aggregate import aggregate_range
+from ufo_tdkit_report.config import InsecureKeyFileWarning
 from ufo_tdkit_report.model import (
     ChangeFact,
     FactType,
@@ -52,7 +53,12 @@ from ufo_tdkit_report.narrator import (
     store_model,
 )
 from ufo_tdkit_report.providers import PROVIDERS, Provider
-from ufo_tdkit_report.service import commit_facts, extract_facts, extract_working_facts
+from ufo_tdkit_report.service import (
+    commit_facts,
+    describe_changes,
+    extract_facts,
+    extract_working_facts,
+)
 from ufo_tdkit_report.settings import Account, AiSettings, UnboundRepoWarning
 
 __all__ = [
@@ -61,6 +67,7 @@ __all__ = [
     "extract_working_facts",
     "aggregate_range",
     "commit_facts",
+    "describe_changes",
     "narrate",
     "narrate_commit",
     "resolve_api_key",
@@ -80,6 +87,7 @@ __all__ = [
     "KNOWN_MODELS",
     "NarratorError",
     "GroundingWarning",
+    "InsecureKeyFileWarning",
     "UnboundRepoWarning",
     "SourceReport",
     "RangeReport",

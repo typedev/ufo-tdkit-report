@@ -489,17 +489,74 @@ def test_account_add_on_a_tty_runs_the_guided_flow(tmp_path, monkeypatch, capsys
 
 
 def test_an_unbound_repo_is_announced(tmp_path, monkeypatch, recwarn):
-    """Silence would mean narrating on the default account's provider and key unnoticed."""
+    """Silence would mean narrating on the default account's provider and key unnoticed.
+
+    `--ai-note` is passed to keep the pre-0.5 spelling exercised; it is accepted and
+    ignored now that narration is the default. The run itself succeeds — no account here
+    has a key, so it falls back to the deterministic report — and the warning is what
+    explains *why* the key the owner does have was not the one looked for.
+    """
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     from ufo_tdkit_report import settings
 
     settings.add_account("work", provider="deepseek")  # >1 account: the binding matters
     repo = _git_repo(tmp_path, "Unbound")
 
-    assert main(["--repo", str(repo), "--notes", "HEAD~0..HEAD", "--ai-note"]) == 1
+    assert main(["--repo", str(repo), "--notes", "HEAD~0..HEAD", "--ai-note"]) == 0
     warned = recwarn.pop(settings.UnboundRepoWarning)
     assert "is not registered" in str(warned.message)
     assert "tdreport bind" in str(warned.message)
+
+
+def test_narration_is_the_default_and_falls_back_out_loud(tmp_path, monkeypatch, capsys):
+    """Unconfigured must not mean unexplained.
+
+    The whole risk of making AI the default is that the same command on the same repo
+    prints different things depending on ambient config. That is tolerable only if the
+    quieter outcome says so — and says it on stderr, so the report on stdout stays the
+    byte-stable artefact a pipe or a redirect expects.
+    """
+    repo = _git_repo(tmp_path, "Quiet")
+    assert main(["--repo", str(repo), "--notes", "HEAD~0..HEAD"]) == 0
+    captured = capsys.readouterr()
+    assert "no API key" in captured.err
+    assert "deterministic report only" in captured.err
+    assert "Source changes" in captured.out
+    assert "note:" not in captured.out  # the explanation must not pollute the report
+
+
+def test_no_ai_is_silent_and_never_resolves_a_provider(tmp_path, capsys):
+    """Opting out is not the same as failing to opt in: nothing to explain, so no note."""
+    repo = _git_repo(tmp_path, "Silent")
+    assert main(["--repo", str(repo), "--notes", "HEAD~0..HEAD", "--no-ai"]) == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert "Source changes" in captured.out
+
+
+def test_require_ai_fails_instead_of_falling_back(tmp_path, capsys):
+    """CI that publishes the prose has no use for a report it did not ask for."""
+    repo = _git_repo(tmp_path, "Strict")
+    assert main(["--repo", str(repo), "--notes", "HEAD~0..HEAD", "--ai"]) == 1
+    out = capsys.readouterr().out
+    assert "--ai was requested" in out
+    assert "no API key" in out
+
+
+def test_json_still_means_the_facts_and_says_so_when_asked_for_both(tmp_path):
+    """--json is the machine-readable facts; a narrative is not part of `to_dict()`."""
+    repo = _git_repo(tmp_path, "Machine")
+    assert main(["--repo", str(repo), "--notes", "HEAD~0..HEAD", "--json"]) == 0
+    with pytest.raises(SystemExit) as exc:
+        main(["--repo", str(repo), "--notes", "HEAD~0..HEAD", "--json", "--ai"])
+    assert exc.value.code == 2
+
+
+def test_ai_and_no_ai_together_are_rejected(tmp_path):
+    repo = _git_repo(tmp_path, "Both")
+    with pytest.raises(SystemExit) as exc:
+        main(["--repo", str(repo), "--notes", "HEAD~0..HEAD", "--ai", "--no-ai"])
+    assert exc.value.code == 2
 
 
 def test_the_cli_renders_that_warning_as_one_readable_line():

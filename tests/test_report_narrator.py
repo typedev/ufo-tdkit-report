@@ -171,9 +171,21 @@ def test_narrate_resolves_the_stored_key_when_none_is_passed(tmp_path, monkeypat
     assert captured["headers"]["x-api-key"] == "sk-ant-stored"
 
 
+def _key_file(path, body):
+    """A .env written the way the tool writes one: owner-only.
+
+    Left at the default umask it is world-readable, which now (correctly) raises
+    `InsecureKeyFileWarning` — the fixture has to match reality or it tests a file
+    shape the tool never produces.
+    """
+    path.write_text(body)
+    if os.name != "nt":
+        path.chmod(0o600)
+    return path
+
+
 def test_read_dotenv_key_parses_forms(tmp_path):
-    env = tmp_path / ".env"
-    env.write_text(
+    env = _key_file(tmp_path / ".env",
         "# a comment\n"
         "OTHER=ignore\n"
         'export ANTHROPIC_API_KEY="sk-ant-quoted"\n'
@@ -182,8 +194,7 @@ def test_read_dotenv_key_parses_forms(tmp_path):
 
 
 def test_read_dotenv_key_plain_and_missing(tmp_path):
-    env = tmp_path / ".env"
-    env.write_text("ANTHROPIC_API_KEY=sk-plain\nPATH=/should/not/matter\n")
+    env = _key_file(tmp_path / ".env", "ANTHROPIC_API_KEY=sk-plain\nPATH=/should/not/matter\n")
     assert read_dotenv_key([env]) == "sk-plain"
     assert read_dotenv_key([tmp_path / "nope.env"]) is None
 
@@ -212,7 +223,7 @@ def test_resolve_api_key_from_config_only(tmp_path, monkeypatch):
     config = tmp_path / "cfg" / "ufo-tdkit-report"
     config.mkdir(parents=True)
     assert config_dir() == config  # honors XDG_CONFIG_HOME
-    (config / ".env").write_text("ANTHROPIC_API_KEY=from-tdkit-config\n")
+    _key_file(config / ".env", "ANTHROPIC_API_KEY=from-tdkit-config\n")
     assert resolve_api_key() == "from-tdkit-config"
 
 

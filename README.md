@@ -2,26 +2,41 @@
 
 [![CI](https://github.com/typedev/ufo-tdkit-report/actions/workflows/ci.yml/badge.svg)](https://github.com/typedev/ufo-tdkit-report/actions/workflows/ci.yml)
 
-Deterministic, git-centric source-change extractor and narrator for UFO / designspace
-font projects. It diffs the **sources** semantically (formatting-agnostic) and compresses
-the changes into a few facts — catching outline redraws and feature-rule changes that a
-binary font diff misses. Optionally drafts a grounded commit message or release notes —
-through Claude, GPT, Gemini, Grok, Mistral, DeepSeek, Qwen, Kimi, GLM, or a local model.
+**Writes the commit message and the release notes for your font project** — through
+Claude, GPT, Gemini, Grok, Mistral, Groq, DeepSeek, Qwen, Kimi, GLM, or a local model.
 
-Standalone and build-tool-agnostic: it needs **git**, not any particular font compiler.
+What makes that trustworthy is what sits underneath. The prose is not written from a
+`git diff`; it is written from a **semantic diff of the sources** — outlines compared
+coordinate by coordinate, OpenType features at the rule level, kerning and fontinfo
+normalized so an editor's re-serialization diffs to nothing. The model may only restate
+those facts, a deterministic check afterwards says so if it strayed, and the facts
+themselves are attached verbatim to every narration so you can verify it in seconds.
+
+```bash
+tdreport                        # a drafted commit message for the working tree
+tdreport --notes v2.005..HEAD   # release notes for a range
+tdreport --no-ai                # …or just the facts, no model call
+```
+
+AI narration is the **default**, and it degrades rather than fails: with no provider
+configured — or one that is unreachable — you get the deterministic report and a note on
+stderr saying why. Standalone and build-tool-agnostic: it needs **git**, not any
+particular font compiler.
 
 ## Features
 
-- **Semantic source diff** — outlines (coordinate-based, not text), kerning/groups,
-  fontinfo, OpenType features (`feaLib` rule level), designspace (axes/masters/instances),
-  and build-profile YAML (option level).
+- **Grounded AI narration**, on by default — the deterministic facts become prose, with
+  the facts attached verbatim for verification. The model may only restate them; a
+  deterministic post-check flags invention, and nothing is ever published. See
+  [AI narration](#ai-narration).
+- **Commit assistant** — draft a commit message from the working tree, edit it, commit it.
+- **Range / release notes** — aggregate a tag/commit range into notes.
+- **Semantic source diff** — the ground truth under the prose: outlines (coordinate-based,
+  not text), kerning/groups, fontinfo, OpenType features (`feaLib` rule level), designspace
+  (axes/masters/instances), and build-profile YAML (option level). `--no-ai` gives you
+  exactly this and nothing else.
 - **No silent omissions** — every changed tracked file surfaces as a fact (semantic when
   available, else a bare added/removed/modified note). `.gitignore` is honoured.
-- **Commit assistant** — draft a commit message from the working tree.
-- **Range / release notes** — aggregate a tag/commit range into notes.
-- **Grounded AI narration** (opt-in) — `--ai-note` turns the deterministic facts into
-  prose, attaching the facts verbatim for verification. See
-  [AI narration](#ai-narration-opt-in).
 - **Your choice of AI provider** — Claude, GPT, Gemini, Grok, Mistral, Groq, DeepSeek,
   Qwen, Kimi, GLM, OpenRouter, or a local model (Ollama, LM Studio, vLLM, llama.cpp) via
   any OpenAI-compatible endpoint. See the [table](#providers) for the full list.
@@ -84,11 +99,12 @@ tdreport --help
 
 ```bash
 # Working-tree commit assistant
-tdreport                       # draft a message for the current repo
-tdreport --ai-note             # narrated by a grounded AI
+tdreport                       # draft a message for the current repo, narrated
+tdreport --no-ai               # …the deterministic facts only, no model call
+tdreport --ai                  # …require the narrative: fail rather than fall back
 tdreport commit                # commit the working tree with the drafted message
 
-# One-time setup for --ai-note
+# One-time setup for the narration
 tdreport set-provider          # pick the provider (Claude, GPT, Gemini, Grok, local…)
 tdreport set-key sk-...        # store that provider's API key, owner-only
 tdreport set-model             # pick the narration model from a menu
@@ -117,7 +133,7 @@ tdreport --notes v2.005..HEAD  # aggregate every commit in the range into releas
 
 `tdreport <repo>` prints the draft and where it lives; answer `n` at the prompt, edit
 that file, then `tdreport <repo> commit` — the edited text is used as-is, and you do not
-need to repeat `--ai-note`.
+need to repeat anything.
 
 Two things are guarded:
 
@@ -141,7 +157,7 @@ not invalidate a draft, because the extracted facts are unchanged.
 ```bash
 tdreport set-key sk-ant-...           # once, for everything
 tdreport ~/fonts/MyFont               # remembered 'MyFont' -> …
-tdreport MyFont --ai-note             # from now on
+tdreport MyFont                       # from now on, narrated
 ```
 
 **A second repo on a different model, same key.** Override the model on that repo only —
@@ -177,7 +193,7 @@ tdreport bind work ~/fonts/ClientFont # and any other repo of that client
 **One-off, changing nothing:**
 
 ```bash
-tdreport MyFont --ai-note --ai-model claude-haiku-4-5 --ai-lang German
+tdreport MyFont --ai-model claude-haiku-4-5 --ai-lang German
 ```
 
 **Where does this repo's setting come from?** `tdreport settings <repo>` shows every
@@ -185,10 +201,31 @@ value with its source and lets you change it at the right level; `tdreport repo 
 prints the same resolution non-interactively; `tdreport ls` lists every repo with
 its overrides; `tdreport settings` shows and edits all of it.
 
-## AI narration (opt-in)
+## AI narration
 
-AI narration is **off** unless you pass `--ai-note`. When you do, the tool needs an API
-key, which it reads from a **single place**: its own config directory.
+Narration is **on by default**. It needs an API key, which the tool reads from a **single
+place**: its own config directory.
+
+Three things turn it off, and they are not the same thing:
+
+| | what it means | note on stderr |
+| --- | --- | --- |
+| `--no-ai` | you asked for the facts only | no — nothing to explain |
+| `--json` | machine-readable facts; a narrative is not part of `to_dict()` | no |
+| nothing configured, or the provider failed | the prose could not be produced | **yes**, saying which |
+
+The fallback is deliberate and it is deliberately loud. A tool whose output silently
+depends on whether a key happens to be lying around is exactly the sort of thing this one
+exists to eliminate — so the report on **stdout** stays the byte-stable artefact a pipe or
+a redirect expects, and the explanation goes to **stderr**. When you would rather fail
+than receive the quieter output — CI that publishes the prose, say — `--ai` says so:
+
+```bash
+tdreport --notes v2.005..HEAD --ai > notes.md   # no prose, no file, non-zero exit
+```
+
+`--ai-note`, the pre-0.5 way of asking for narration, is still accepted and does nothing,
+so existing scripts and hooks keep working.
 
 | OS      | path                                                     |
 | ------- | -------------------------------------------------------- |
@@ -209,9 +246,12 @@ Three files and a drafts directory live there, and only the first holds secrets:
 | `repos.json`    | registered repos and their bindings | —           |
 | `drafts/`       | commit-message drafts and their fingerprints, deleted once committed | — |
 
-\* `0600` on Linux and macOS. Windows has no such mode bit — `chmod` there can only
-toggle read-only — so the file is protected by the ACL of the user-profile directory it
-sits in, which is already user-only.
+\* `0600` on Linux and macOS, and **checked every time the file is read**, not only set
+when it is written: a `cp -r` of your dotfiles, a restored backup or a permissive `umask`
+widens it silently, so a readable key file gets one note naming the mode and the `chmod`
+that fixes it. Windows has no such mode bit — `chmod` there can only toggle read-only —
+so the file is protected by the ACL of the user-profile directory it sits in, which is
+already user-only.
 
 Keys never appear in `settings.json` or `repos.json`, and **nothing tdreport-related is
 ever written inside your font repository** — not a config file, which would be committed
@@ -228,8 +268,8 @@ cwd — so a stray export or a project `.env` can't leak in.
 tdreport set-provider           # menu of providers
 tdreport set-key sk-...         # that provider's key (also accepts stdin: `… | tdreport set-key`)
 tdreport set-model              # menu of that provider's models
-tdreport --ai-note                          # commit message, AI-drafted
-tdreport --notes v2.005..HEAD --ai-note     # release notes, AI-drafted
+tdreport                                    # commit message, AI-drafted
+tdreport --notes v2.005..HEAD               # release notes, AI-drafted
 ```
 
 Running `tdreport set-key` with no argument prompts for the key without echoing it
@@ -469,7 +509,7 @@ By default a finding is a note; a strict account or repo refuses the narration i
 ```bash
 tdreport set-grounding strict                  # this account
 tdreport repo AcmeSans grounding warn          # …but not this repo
-tdreport --ai-note --strict-grounding          # just this run
+tdreport --strict-grounding                    # just this run
 ```
 
 Strictness is a setting rather than only a flag because it belongs to the *model*: a small
@@ -496,13 +536,28 @@ print(resolve_ai_settings(repo=".").model)        # what a run here would use
 
 ## Library
 
+The CLI's default — narrate, fall back to the facts — is one call:
+
+```python
+from ufo_tdkit_report import describe_changes
+
+print(describe_changes(".", "HEAD~1..HEAD"))              # narrated, or the facts
+print(describe_changes(".", "v1..v2", notes=True))        # release notes
+print(describe_changes(".", "HEAD~1..HEAD", ai=False))    # never calls out
+```
+
+`describe_changes` is the **only** public call that touches the network. The extractors
+stay pure and offline, on purpose: they get embedded in build pipelines, and a fact
+extractor spending money on its own initiative is not a reasonable default at that layer.
+Compose them deliberately when you want the failure rather than the fallback:
+
 ```python
 from ufo_tdkit_report import extract_facts, aggregate_range, narrate, resolve_ai_settings
 
 report = extract_facts(".", "HEAD~1..HEAD")
 print(report.render_text())                      # deterministic, no network
 
-print(narrate(report))                           # this repo's account, model, language
+print(narrate(report))                           # raises NarratorError instead of falling back
 print(resolve_ai_settings(repo=".").model)       # what a run here would use
 ```
 

@@ -28,6 +28,9 @@ library callers too, not just the CLI.
 
 1. **A flag on the run** — `--ai-model`, `--ai-lang`, `--ai-provider`, `--ai-account`,
    `--strict-grounding` / `--no-strict-grounding` (in the library, `narrate(model=…)`)
+
+Narration itself is **on by default**; `--no-ai` turns it off for one run, `--ai` refuses
+to fall back to the deterministic report when it cannot be produced.
 2. **The repo's own override** — `tdreport repo <name> …`
 3. **The account that repo is bound to** — `tdreport bind`
 4. **The default account** — `tdreport account use <name>`
@@ -137,7 +140,7 @@ holds secrets.
 
 | File | Contents |
 | --- | --- |
-| `.env` | **Keys only**, one variable per account (`TDREPORT_KEY_WORK`). Mode `0600` on Linux and macOS; on Windows there is no such mode bit, and the user-profile ACL protects it instead |
+| `.env` | **Keys only**, one variable per account (`TDREPORT_KEY_WORK`). Mode `0600` on Linux and macOS, checked on every read — if a copy or a backup widened it you get one note naming the `chmod`; on Windows there is no such mode bit, and the user-profile ACL protects it instead |
 | `settings.json` | Accounts: provider, model, language, base URL. No secrets |
 | `repos.json` | Registered repos, their bindings and overrides. No secrets |
 | `drafts/` | Drafted commit messages, removed once committed. Safe to delete |
@@ -182,6 +185,14 @@ the narration and notes the tokens instead.
 codepoints and tags in backticks, so they can be told apart from prose — `four` and `one`
 are glyph names as well as words. This model ignored that, so glyph-name checking was
 skipped for that narration. The other checks still ran. Common on small local models.
+
+**I get the plain report and no prose.** That is the fallback, and it always says why on
+stderr: no key for the resolved provider, no model chosen, or the call failed. Two
+surprises to check first — `--json` implies no narration (a narrative is not part of the
+machine-readable facts), and a repo that is *not registered* resolves to the **default**
+account, so the key you set on another account was never the one looked for. `tdreport
+settings <repo>` names the source of every value. Use `--ai` to make the fallback an
+error instead.
 
 **`unknown repo 'x'`.** A bare name that was never registered is an error rather than a
 guess. Register it by addressing it once by path (`tdreport ~/fonts/x`), or check
