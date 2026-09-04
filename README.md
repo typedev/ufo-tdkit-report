@@ -85,6 +85,11 @@ the sensible pin, since the deterministic report is byte-stable within a minor v
 dependencies = ["ufo-tdkit-report>=0.5,<0.6"]
 ```
 
+**PyPI history starts at 0.5.2.** Earlier versions exist as git tags and GitHub Releases
+but were never uploaded, so an exact pin below that (`==0.5.1`) resolves to nothing from
+the index — use the git URL for those, or a range, which lands on a published version
+either way.
+
 For hacking on the tool itself, work inside a synced project env instead and run via
 `uv run` (no global install needed):
 

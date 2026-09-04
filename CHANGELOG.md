@@ -8,6 +8,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Changed
+- Documented that **the PyPI history starts at 0.5.2**. Earlier versions are git tags and
+  GitHub Releases only, so an exact pin below that resolves to nothing from the index —
+  invisible from here, and confusing for anyone trying to install a specific earlier
+  version. Reported by TDKit.
 - **Published on PyPI** as of 0.5.2, so the README leads with `uv tool install
   ufo-tdkit-report` (or `pipx`) instead of a git URL, and documents the library pin as a
   range — `>=0.5,<0.6` — now that one is possible. Installing from source is still

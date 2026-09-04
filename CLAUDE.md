@@ -287,10 +287,18 @@ gh release create vX.Y.Z --title vX.Y.Z --notes-file <that section> --verify-tag
 
 A consumer pinning by tag only needs the tag, so the missing Release is invisible from
 the code side and easy to forget — the symptom is "I do not see the update on GitHub"
-while every commit is in fact pushed. **Published on PyPI since 0.5.2**, so a consumer
-can now take a range (`ufo-tdkit-report>=0.5,<0.6`) instead of editing a pin per release;
-a `tool.uv.sources` git entry overrides any specifier beside it, which is why the git-tag
-pin needed hand-editing every time.
+while every commit is in fact pushed. **Published on PyPI since 0.5.2** — and that is
+where the index's history begins; 0.1.0–0.5.1 exist only as tags, so an exact pin below
+0.5.2 resolves to nothing from PyPI. A consumer can now take a range
+(`ufo-tdkit-report>=0.5,<0.6`) instead of editing a pin per release, but only after
+deleting any `tool.uv.sources` git entry: that overrides the specifier beside it outright,
+which is why the git-tag pin needed hand-editing every time. The bigger gain is not
+ergonomic though — a lock file against the index records each artefact's **sha256**,
+while a git tag is mutable and can be moved to a different commit with every consumer
+silently following. Publishing is a supply-chain improvement first. (Both points came
+back from TDKit, who verified the swap rather than trusting it: the published sources
+diff against the tag they had tested was ten lines of docstring, executable code
+byte-identical.)
 
 `make release-checklist` prints that order; `make publish` adds PyPI on the end. PyPI is
 the one irreversible step here — a version can be yanked but **never re-uploaded**, so a
