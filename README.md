@@ -1,6 +1,8 @@
 # ufo-tdkit-report
 
 [![CI](https://github.com/typedev/ufo-tdkit-report/actions/workflows/ci.yml/badge.svg)](https://github.com/typedev/ufo-tdkit-report/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/ufo-tdkit-report)](https://pypi.org/project/ufo-tdkit-report/)
+[![Python](https://img.shields.io/pypi/pyversions/ufo-tdkit-report)](https://pypi.org/project/ufo-tdkit-report/)
 
 **Writes the commit message and the release notes for your font project** — through
 Claude, GPT, Gemini, Grok, Mistral, Groq, DeepSeek, Qwen, Kimi, GLM, or a local model.
@@ -50,33 +52,37 @@ particular font compiler.
 
 ## Install
 
-This is a command-line tool, so install it as a **global CLI** with
-[`uv`](https://docs.astral.sh/uv): that puts the `tdreport` command on your `PATH`
-(no `sudo`, no virtualenv to activate) while keeping its dependencies isolated in their
-own environment. It is not on PyPI yet, so install straight from the source. Pick **one**
-of the two options below — don't run both.
-
-**Option A — from the git URL** (works from any directory, nothing to clone):
+This is a command-line tool, so install it as a **global CLI**: that puts the `tdreport`
+command on your `PATH` (no `sudo`, no virtualenv to activate) while keeping its
+dependencies isolated in their own environment.
 
 ```bash
-uv tool install git+https://github.com/typedev/ufo-tdkit-report.git
+uv tool install ufo-tdkit-report        # or: pipx install ufo-tdkit-report
 ```
 
-**Option B — from a local checkout** (use this if you want to install your own edits).
-The `.` means "the project in the current directory", so you must be *inside* the
-checkout when you run it:
+Either works; [`uv`](https://docs.astral.sh/uv) is what this project uses for everything
+else. `pip install ufo-tdkit-report` also works but puts the dependencies wherever `pip`
+is pointing, which for a CLI is rarely what you want.
+
+Then `tdreport` works from any directory:
 
 ```bash
-git clone https://github.com/typedev/ufo-tdkit-report.git
-cd ufo-tdkit-report
-uv tool install .        # add --force to replace an existing install
-```
-
-Then `tdreport` works from any directory. Update or remove it later with:
-
-```bash
-uv tool upgrade ufo-tdkit-report     # reinstall from the same source
+uv tool upgrade ufo-tdkit-report     # take the newest release
 uv tool uninstall ufo-tdkit-report
+```
+
+**From source instead**, to run an unreleased `main` or your own edits:
+
+```bash
+uv tool install git+https://github.com/typedev/ufo-tdkit-report.git   # from the git URL
+# …or, inside a clone, `uv tool install .` (add --force to replace an existing install)
+```
+
+**As a library**, add it the way you add any dependency — a compatible-release bound is
+the sensible pin, since the deterministic report is byte-stable within a minor version:
+
+```toml
+dependencies = ["ufo-tdkit-report>=0.5,<0.6"]
 ```
 
 For hacking on the tool itself, work inside a synced project env instead and run via

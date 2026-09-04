@@ -7,7 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+- **Published on PyPI** as of 0.5.2, so the README leads with `uv tool install
+  ufo-tdkit-report` (or `pipx`) instead of a git URL, and documents the library pin as a
+  range — `>=0.5,<0.6` — now that one is possible. Installing from source is still
+  documented, for running an unreleased `main`. Verified from the index rather than
+  assumed: both the wheel and a forced sdist build install into clean environments, and
+  the installed CLI produces a correct semantic fact on a real repository.
 
 ## [0.5.2] - 2026-09-04
 

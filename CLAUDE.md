@@ -285,9 +285,12 @@ git push origin main --follow-tags
 gh release create vX.Y.Z --title vX.Y.Z --notes-file <that section> --verify-tag --latest
 ```
 
-A consumer pinning by tag (TDKit does) only needs the tag, so the missing Release is
-invisible from the code side and easy to forget — the symptom is "I do not see the update
-on GitHub" while every commit is in fact pushed.
+A consumer pinning by tag only needs the tag, so the missing Release is invisible from
+the code side and easy to forget — the symptom is "I do not see the update on GitHub"
+while every commit is in fact pushed. **Published on PyPI since 0.5.2**, so a consumer
+can now take a range (`ufo-tdkit-report>=0.5,<0.6`) instead of editing a pin per release;
+a `tool.uv.sources` git entry overrides any specifier beside it, which is why the git-tag
+pin needed hand-editing every time.
 
 `make release-checklist` prints that order; `make publish` adds PyPI on the end. PyPI is
 the one irreversible step here — a version can be yanked but **never re-uploaded**, so a
