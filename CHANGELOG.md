@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.5.0] - 2026-09-03
+
+The tool is repositioned around what it is actually for: **it writes the commit message
+and the release notes**, and the deterministic semantic diff underneath is what makes them
+trustworthy. Narration is now the default. Auditing that change turned up an API key
+leaking through a dataclass repr, fixed here too.
+
 ### Changed
 - **AI narration is now the default, and the tool is positioned around it.** `tdreport`
   drafts the commit message or the release notes; the deterministic semantic diff is what
@@ -476,7 +485,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.0...v0.4.1
