@@ -289,6 +289,17 @@ A consumer pinning by tag (TDKit does) only needs the tag, so the missing Releas
 invisible from the code side and easy to forget — the symptom is "I do not see the update
 on GitHub" while every commit is in fact pushed.
 
+`make release-checklist` prints that order; `make publish` adds PyPI on the end. PyPI is
+the one irreversible step here — a version can be yanked but **never re-uploaded**, so a
+wrong artefact is permanent under that number — which is why `publish` gates on a clean
+tree matching `origin/main`, a `v<version>` tag pointing at **HEAD**, the version not
+already being on PyPI, the suite, and a wheel that installs into a throwaway venv and
+reports the right version. Don't loosen those to get an upload through; bump the version
+instead. The tag-points-at-HEAD gate is the one that earns its keep: doc commits landing
+after a tag mean the artefact would carry a README (and a PyPI summary) the tag never
+described. Credentials are never in the Makefile — `uv publish` reads `UV_PUBLISH_TOKEN`,
+and Trusted Publishing from CI removes the token entirely.
+
 ## Testing conventions
 
 Tests pair fast unit tests (an injected fake `runner`/`transport`, canned stdout) with

@@ -1,7 +1,7 @@
 [project]
 name = "ufo-tdkit-report"
-version = "0.5.0"
-description = "Deterministic git-centric source-change extractor & narrator for UFO/designspace font projects"
+version = "0.5.1"
+description = "Writes the commit message and release notes for UFO/designspace font projects, grounded in a deterministic source diff"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
@@ -24,6 +24,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: Apache Software License",
 ]
 
@@ -46,6 +47,7 @@ tdreport = "ufo_tdkit_report.cli:main"
 Homepage = "https://github.com/typedev/ufo-tdkit-report"
 Repository = "https://github.com/typedev/ufo-tdkit-report"
 Issues = "https://github.com/typedev/ufo-tdkit-report/issues"
+Changelog = "https://github.com/typedev/ufo-tdkit-report/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]

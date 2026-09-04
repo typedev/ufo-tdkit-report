@@ -7,7 +7,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.5.1] - 2026-09-04
+
+Packaging and documentation. No behaviour change — the code is what 0.5.0 shipped, plus
+the plumbing to put it on PyPI and the README corrections 0.5.0's own repositioning had
+made necessary.
+
+### Added
+- **`Makefile` with a `publish` target**, and the gates that make an irreversible upload
+  survivable: a clean tree matching `origin/main`, a `v<version>` tag pointing at **HEAD**,
+  the version not already on PyPI, the suite and lint, `twine check --strict` so a README
+  that will not render on PyPI is caught before upload, and the built wheel installed into
+  a throwaway venv to confirm its entry point reports the right version. `make
+  publish-test` rehearses on TestPyPI; `make release-checklist` prints the order without
+  doing anything. No credential is stored in the file — `uv publish` reads
+  `UV_PUBLISH_TOKEN`, and Trusted Publishing from CI needs no token at all.
+- Packaging metadata for PyPI: the summary now describes what the tool became in 0.5.0
+  (that one line is most of what anyone reads on a package page), a `Changelog` project
+  URL, and the Python 3.13 classifier that CI has been testing all along.
+
 ### Changed
+- **The README contradicted itself after 0.5.0**, in nine places, three of them false
+  rather than merely awkward. It claimed `describe_changes` was "the only public call that
+  touches the network" — `narrate` and `list_models` reach a provider by their nature, and
+  the claim had spread to CLAUDE.md and to the *name* of the test meant to guard it. It
+  promised an error with token counts when a reasoning model runs out of budget, and an
+  outright refusal on a strict grounding finding; since 0.5.0 both are absorbed by the
+  fallback into a note plus the deterministic report, with an error only under `--ai`. The
+  rest was drift the same change introduced: an orphaned table, an `--ai > notes.md`
+  example claiming "no file" where a shell redirect creates it regardless, the undocumented
+  `--ai --json` argument error, a blanket claim left standing directly above the paragraph
+  added to correct it, and a list of still-valid module names covering two of three.
 - Documentation names the **defining module** of each warning category, not only the root
   export. The three do not share a module — they live beside the checks that raise them
   (`UnboundRepoWarning` in `settings`, `GroundingWarning` in `narrator`,
@@ -494,7 +526,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.1...v0.4.2
