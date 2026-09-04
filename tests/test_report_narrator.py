@@ -553,3 +553,45 @@ def test_end_to_end_over_real_http_against_a_loopback_server(tmp_path, monkeypat
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_the_resolved_cap_and_strictness_reach_the_request(monkeypatch, tmp_path):
+    """Both were accepted by the public signature and thrown away.
+
+    `max_tokens` defaulted to a concrete number in the signature — the pattern CLAUDE.md
+    forbids for model and provider, and for the same reason: it silently overrode what
+    the owner had configured. `strict_grounding` was worse: it was never passed to the
+    resolver at all, so `--strict-grounding` and `narrate(strict_grounding=True)` did
+    nothing. A flag that quietly does nothing is worse than one that does not exist,
+    because this one is a safety setting.
+    """
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
+    from ufo_tdkit_report import settings
+    from ufo_tdkit_report.providers import DEFAULT_MAX_TOKENS
+
+    settings.store_account_key("sk-x")
+    seen = {}
+
+    def transport(url, headers, body, timeout):
+        seen.update(json.loads(body))
+        return {"content": [{"type": "text", "text": "Outlines were redrawn."}], "stop_reason": "end_turn"}
+
+    narrate(_report(), transport=transport)
+    assert seen["max_tokens"] == DEFAULT_MAX_TOKENS
+
+    settings.update_account("default", max_tokens=32000)
+    narrate(_report(), transport=transport)
+    assert seen["max_tokens"] == 32000, "the account's cap must win over the built-in"
+
+    narrate(_report(), transport=transport, max_tokens=4096)
+    assert seen["max_tokens"] == 4096, "an explicit argument must win over the account"
+
+    # Strictness now actually reaches the check: an ungrounded narration is refused.
+    def inventing(url, headers, body, timeout):
+        return {
+            "content": [{"type": "text", "text": "Redrew `guillemotleft` at U+FFFE."}],
+            "stop_reason": "end_turn",
+        }
+
+    with pytest.raises(NarratorError, match="grounding"):
+        narrate(_report(), transport=inventing, strict_grounding=True)

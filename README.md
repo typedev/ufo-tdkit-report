@@ -324,10 +324,21 @@ runtime dependency for this.
 **Reasoning models** (DeepSeek's reasoners, and the reasoning modes of others) spend the
 completion budget on their private reasoning *before* writing anything, so they need a
 much larger cap than the prose alone would suggest — the default is 8192 and
-`--ai-max-tokens` raises it per run. If one still stops before answering, the note names
-the token counts rather than reporting an empty narrative — and, like any narration
-failure, you get the deterministic report rather than nothing. Use `--ai` to make it an
-error instead.
+the default is 8192 and it covers the **whole** completion. If one still stops before
+answering, the note names the token counts rather than reporting an empty narrative —
+and, like any narration failure, you get the deterministic report rather than nothing.
+Use `--ai` to make it an error instead.
+
+Raise the cap where it belongs rather than typing a flag every run:
+
+```bash
+tdreport set-max-tokens 32000              # this account
+tdreport repo Evacode max-tokens 32000     # …or just this repo
+tdreport --ai-max-tokens 32000             # …or just this run
+```
+
+The built-in default stays conservative on purpose: `max_tokens` goes to every provider,
+and some models cap their output well below a number chosen to suit a talkative one.
 
 Local models are worth a caveat: the narrator's grounding depends on the model following
 instructions, and a small local model invents more than a large hosted one. The
@@ -336,8 +347,8 @@ deterministic facts are attached verbatim to every narration precisely so you ca
 ### The settings screen
 
 `tdreport settings <repo>` scopes the screen to one repository. Two settings live on the
-**account** (the provider and its key — a key is a key *for* a provider) and three can
-live on the **repo** (model, language, grounding strictness); looking at a repo that split
+**account** (the provider and its key — a key is a key *for* a provider) and four can
+live on the **repo** (model, language, grounding strictness, token cap); looking at a repo that split
 is invisible, so this screen shows every value **with where it comes from**:
 
 ```
@@ -350,7 +361,8 @@ Settings — repo 'AcmeSans'
    2. Model      gpt-5-mini             from this repo
    3. Language   German                 from account 'work'
    4. Grounding  strict                 from account 'work'
-   5. Edit the account itself (affects every repo using it)
+   5. Max tokens 32000                  from this repo
+   6. Edit the account itself (affects every repo using it)
    q. Quit
 ```
 
@@ -364,13 +376,13 @@ Accounts — an account carries the provider AND the key for it:
    2. work             openai       key set (…9999)  <- current
 ```
 
-Options 2, 3 and 4 set overrides for this repo only (an empty answer clears one, handing
-the field back to the account). Option 5 jumps into the account's own screen, which
+Options 2 through 5 set overrides for this repo only (an empty answer clears one, handing
+the field back to the account). Option 6 jumps into the account's own screen, which
 affects every repo using it.
 
 `tdreport settings` with no repo puts all of it on one screen — provider, model, key,
-language, base URL, grounding strictness, accounts, and the registered repos with their
-bindings:
+language, base URL, grounding strictness, the token cap, accounts, and the registered
+repos with their bindings:
 
 ```
 Settings — account 'default'
@@ -381,8 +393,9 @@ Settings — account 'default'
    4. Language      German
    5. Base URL      https://api.deepseek.com/v1
    6. Grounding     warn
-   7. Accounts      default, work
-   8. Repos         3 registered, 2 bound
+   7. Max tokens    32000
+   8. Accounts      default, work
+   9. Repos         3 registered, 2 bound
    q. Quit
 ```
 
@@ -494,7 +507,7 @@ not just the CLI:
 1. an explicit argument — `--ai-model` / `--ai-provider` / `--ai-lang` / `--ai-account`
    (in the library, `narrate(model=..., provider=...)`)
 2. the repository's own entry (`tdreport bind`, or a per-repo
-   `model`/`language`/`grounding`)
+   `model`/`language`/`grounding`/`max-tokens`)
 3. the account that entry names
 4. the default account (`tdreport account use`)
 5. the built-in default — provider `anthropic`, model **`claude-opus-5`**, language English

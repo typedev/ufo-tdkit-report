@@ -208,3 +208,55 @@ def test_switching_provider_does_not_carry_a_stale_model_over():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_max_tokens_resolves_through_the_whole_chain(tmp_path):
+    """The completion cap is a setting, not only a flag.
+
+    A reasoning model spends the same budget on thinking and on the answer, so the
+    built-in 8192 is not enough for every model — and typing `--ai-max-tokens` on every
+    run is not a fix, it is a reminder. Explicit > repo > account > built-in, like
+    everything else that resolves here.
+    """
+    from ufo_tdkit_report import registry
+    from ufo_tdkit_report.providers import DEFAULT_MAX_TOKENS
+
+    repo = tmp_path / "Font"
+    repo.mkdir()
+    assert settings.resolve_ai_settings().max_tokens == DEFAULT_MAX_TOKENS
+
+    settings.update_account("default", max_tokens=32000)
+    assert settings.resolve_ai_settings().max_tokens == 32000
+
+    registry.add("font", str(repo), max_tokens=64000)
+    assert settings.resolve_ai_settings(repo=str(repo)).max_tokens == 64000
+    assert settings.resolve_ai_settings(repo=str(repo), max_tokens=99).max_tokens == 99
+
+    # Clearing walks back up the chain rather than freezing the last value.
+    registry.add("font", str(repo), max_tokens=0)
+    assert settings.resolve_ai_settings(repo=str(repo)).max_tokens == 32000
+    settings.update_account("default", max_tokens=0)
+    assert settings.resolve_ai_settings(repo=str(repo)).max_tokens == DEFAULT_MAX_TOKENS
+
+
+def test_a_hand_edited_cap_that_is_junk_falls_through_rather_than_breaking(tmp_path):
+    """`settings.json` and `repos.json` are files people edit. A typo must not be fatal.
+
+    Falling through to the built-in is the safe direction for a token cap: too large a
+    number is refused by the provider, too small silently truncates. The CLI rejects junk
+    loudly instead, because there the author is present to be told.
+    """
+    from ufo_tdkit_report import registry
+    from ufo_tdkit_report.providers import DEFAULT_MAX_TOKENS
+
+    repo = tmp_path / "Font"
+    repo.mkdir()
+    registry.add("font", str(repo))
+    raw = registry.load()
+    raw["font"]["max_tokens"] = "lots"
+    registry.save(raw)
+    assert settings.resolve_ai_settings(repo=str(repo)).max_tokens == DEFAULT_MAX_TOKENS
+
+    for bad in (0, -5, "nonsense", None):
+        settings.update_account("default", max_tokens=bad)
+        assert settings.resolve_ai_settings().max_tokens == DEFAULT_MAX_TOKENS

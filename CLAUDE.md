@@ -174,14 +174,22 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   storage are pure-ish and unit-tested without network. See also the three bullets below,
   which carry the rules this one used to state alone.
 - **One resolution chain, one config directory.** Every AI setting — provider, model,
-  language, base URL, key — resolves in `settings.resolve_ai_settings` and nowhere else:
+  language, base URL, key, **token cap**, grounding strictness — resolves in
+  `settings.resolve_ai_settings` and nowhere else:
   `explicit argument > repo entry > account > default account > built-in default`. That
   chain must hold for *library* callers too, not just the CLI: `narrate`/`narrate_commit`
   take everything as `... | None = None` and resolve internally — never default a public
   signature to a concrete model/provider, or an embedding tool silently bypasses the
-  owner's preference (this was a real bug, fixed in 0.1.2 and generalised since). The
+  owner's preference (this was a real bug, fixed in 0.1.2 and generalised since; it
+  recurred with `max_tokens: int = DEFAULT_MAX_TOKENS`, fixed in 0.5.3). **Accepting an
+  argument is not passing it on**: `strict_grounding` was accepted by `narrate` and never
+  handed to the resolver, so `--strict-grounding` silently did nothing for several
+  releases — a safety flag that looks wired and is not. When you add a parameter here,
+  add it to the `resolve_ai_settings(...)` call in the *same* edit, and pin it with a
+  test that asserts the effect rather than the signature. The
   built-in defaults live once, in `providers.py` (`DEFAULT_PROVIDER`, `DEFAULT_MODEL`,
-  `DEFAULT_LANGUAGE`) — never re-spell a model id as a literal in `cli.py`/`commit.py`
+  `DEFAULT_LANGUAGE`, `DEFAULT_MAX_TOKENS` — the last moved there from `narrator`, which
+  re-exports it) — never re-spell a model id as a literal in `cli.py`/`commit.py`
   (it was duplicated in four places once). The CLI passes flags down **unresolved**, so a
   repo's own binding still applies. Reports also carry their own `repo`, and
   `narrate(report)` falls back to it, so a consumer cannot forget which repository a
@@ -236,7 +244,11 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   model can spend the entire cap thinking and return no text, which off the wire is
   indistinguishable from having nothing to say. Hence 8192 rather than a prose-sized cap,
   and `_truncation_error`, which reports the token counts instead of "empty narrative".
-  Don't shrink that default back.
+  Don't shrink that default back — and don't raise it either: it is one number sent to
+  all fourteen providers, and some models cap their output well below a value chosen to
+  suit the most talkative one. The fix for a model that needs more is the *setting*
+  (`set-max-tokens`, `repo <name> max-tokens`), which is why the cap resolves through the
+  chain like everything else. A real DeepSeek reasoner ate all 8192 on a small report.
 - **Grounding is checked, and what cannot be checked is said.** The prompt requires every
   identifier to be backticked, because `four`, `one`, `section` and `period` are glyph
   names *and* English words — "in one glyph across four masters" is correct prose, and no

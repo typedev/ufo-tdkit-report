@@ -27,6 +27,14 @@ ANTHROPIC_API_VERSION = "2023-06-01"
 DEFAULT_PROVIDER = "anthropic"
 DEFAULT_MODEL = "claude-opus-5"
 DEFAULT_LANGUAGE = "English"
+# Covers the WHOLE completion, reasoning included — a reasoning model can spend the lot
+# thinking and return no text, which off the wire is indistinguishable from having
+# nothing to say. Hence a cap far larger than any narration needs. It is still not
+# enough for every model (a DeepSeek reasoner ate all 8192 on a small report), which is
+# why it is now a *setting* rather than only a flag: raise it per account or per repo.
+# Don't raise it globally — `max_tokens` goes to all fourteen providers, and some models
+# cap their output well below a number chosen to suit the most talkative one.
+DEFAULT_MAX_TOKENS = 8192
 
 
 class NarratorError(RuntimeError):

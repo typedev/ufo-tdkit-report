@@ -265,6 +265,27 @@ def _do_commit(selector, args, ai_opts, do_commit) -> int:
     return rc
 
 
+def _parse_token_cap(answer: str) -> int | None:
+    """A token cap from user input: a positive int, or 0 to clear. None means rejected.
+
+    Rejected loudly here, unlike the tolerant coercion in `settings`/`registry`: a stored
+    file may have been hand-edited by someone who is not present, but a value typed at
+    the CLI has an author standing right there to be told.
+    """
+    text = (answer or "").strip()
+    if text in ("", "clear", "default", "0"):
+        return 0
+    try:
+        cap = int(text)
+    except ValueError:
+        print(f"error: expected a number of tokens, got '{answer}'")
+        return None
+    if cap < 1:
+        print(f"error: a token cap must be positive, got {cap}")
+        return None
+    return cap
+
+
 def _parse_strictness(answer: str) -> bool | None:
     """`strict`/`warn` (and the obvious synonyms) -> a flag, or None if unrecognised."""
     value = (answer or "").strip().lower()
@@ -312,6 +333,7 @@ Examples:
   tdreport set-model              # pick the narration model from a menu of available ones
   tdreport set-lang Spanish       # AI prose language (the deterministic facts stay English)
   tdreport set-grounding strict   # refuse a narration the facts do not support (default: warn)
+  tdreport set-max-tokens 32000   # completion cap; raise it for a reasoning model
   tdreport set-url http://localhost:8000/v1   # a custom OpenAI-compatible endpoint
   tdreport --ai-max-tokens 16000  # room for a reasoning model to think before it writes
   tdreport settings               # interactive screen for all of the above
@@ -331,7 +353,8 @@ Examples:
         "target", nargs="?",
         help="repo selector (name/path), a commit range, or a command: 'settings', "
              "'accounts', 'account', 'repo', 'bind', 'add', 'ls', 'rm', 'prune', "
-             "'set-key', 'set-model', 'set-provider', 'set-lang', 'set-url', 'set-grounding'",
+             "'set-key', 'set-model', 'set-provider', 'set-lang', 'set-url', 'set-grounding',\n"
+             "'set-max-tokens'",
     )
     parser.add_argument(
         "rest", nargs="*",
@@ -391,7 +414,8 @@ Examples:
     )
     parser.add_argument(
         "--ai-max-tokens", type=int, default=None,
-        help=f"completion cap for the narration (default {DEFAULT_MAX_TOKENS}); a reasoning model "
+        help=f"completion cap for this run, overriding `tdreport set-max-tokens` "
+             f"(built-in default: {DEFAULT_MAX_TOKENS}); a reasoning model "
              f"spends this budget on thinking before it writes anything",
     )
     parser.add_argument("-y", "--yes", action="store_true", help="auto-confirm the 'commit this?' prompt")
@@ -665,6 +689,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  provider    {resolved.provider_name}")
             print(f"  model       {resolved.model or '(not set)'}")
             print(f"  language    {resolved.language}")
+            print(f"  max tokens  {resolved.max_tokens}")
             print(f"  key         {_settings.masked_key(resolved.account)}")
             return 0
 
@@ -672,6 +697,16 @@ def main(argv: list[str] | None = None) -> int:
             fields = [value] if value else list(_registry.OVERRIDE_KEYS)
             _registry.add(name, entry["path"], **{f: None for f in fields})
             print(f"'{name}' now inherits {', '.join(fields)} from its account")
+            return 0
+        if field in ("max-tokens", "max_tokens"):
+            cap = _parse_token_cap(value)
+            if cap is None:
+                return 1
+            _registry.add(name, entry["path"], max_tokens=cap)
+            if cap:
+                print(f"'{name}' max tokens: {cap}")
+            else:
+                print(f"'{name}' now inherits max tokens from its account")
             return 0
         if field in ("grounding", "strict_grounding"):
             strict = _parse_strictness(value)
@@ -774,6 +809,41 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         shown = chosen or "(provider default)"
         print(f"base URL for account '{account_name}' set to {shown}")
+        return 0
+
+    # --- completion cap: `tdreport set-max-tokens [<n>]` ---
+    if args.target == "set-max-tokens":
+        from ufo_tdkit_report.narrator import DEFAULT_MAX_TOKENS
+
+        current = _settings.resolve_ai_settings(account=account_name).max_tokens
+        if args.rest:
+            chosen = _parse_token_cap(args.rest[0])
+            if chosen is None:
+                return 1
+        elif not sys.stdin.isatty():
+            print(f"current max tokens: {current}")
+            print("error: usage: tdreport set-max-tokens <n> (no TTY to prompt)")
+            return 1
+        else:
+            answer = _prompt_line(
+                f"Completion cap in tokens, 0 for the built-in {DEFAULT_MAX_TOKENS} [{current}]: "
+            )
+            if answer is None:
+                print(f"unchanged: {current}")
+                return 0
+            chosen = _parse_token_cap(answer) if answer.strip() else current
+            if chosen is None:
+                return 1
+        try:
+            _settings.update_account(account_name, max_tokens=chosen)
+        except (NarratorError, ValueError) as exc:
+            print(f"error: {exc}")
+            return 1
+        resolved = _settings.resolve_ai_settings(account=account_name).max_tokens
+        print(f"max tokens for account '{account_name}' set to {resolved}"
+              f"{' (the built-in default)' if not chosen else ''}")
+        print("(this covers the WHOLE completion — a reasoning model spends the same "
+              "budget on thinking and on the answer)")
         return 0
 
     # --- prose language: `tdreport set-lang [<language>]` ---

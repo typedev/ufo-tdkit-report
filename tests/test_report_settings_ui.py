@@ -224,12 +224,12 @@ def test_repos_screen_binds_unbinds_and_prunes(monkeypatch, tmp_path):
     rmtree(dead)
 
     # 8 -> repos; b -> bind "live" to "work"; p -> prune; q -> back; q -> quit
-    _answers(monkeypatch, "8", "b", "live", "work", "p", "q", "q")
+    _answers(monkeypatch, "9", "b", "live", "work", "p", "q", "q")
     assert settings_ui.run_settings_menu() == 0
     assert registry.entry("live")["account"] == "work"
     assert registry.entry("dead") is None
 
-    _answers(monkeypatch, "8", "u", "live", "q", "q")
+    _answers(monkeypatch, "9", "u", "live", "q", "q")
     assert settings_ui.run_settings_menu() == 0
     assert "account" not in registry.entry("live")
 
@@ -239,12 +239,12 @@ def test_repos_screen_sets_and_clears_a_per_repo_model(monkeypatch, tmp_path):
     registry.add("myfont", str(repo))
 
     # 8 -> repos; m -> model for "myfont" -> a haiku id; q -> back; q -> quit
-    _answers(monkeypatch, "8", "m", "myfont", "claude-haiku-4-5", "q", "q")
+    _answers(monkeypatch, "9", "m", "myfont", "claude-haiku-4-5", "q", "q")
     assert settings_ui.run_settings_menu() == 0
     assert settings.resolve_ai_settings(repo=str(repo)).model == "claude-haiku-4-5"
 
     # An empty answer clears the override, back to the account's model.
-    _answers(monkeypatch, "8", "m", "myfont", "", "q", "q")
+    _answers(monkeypatch, "9", "m", "myfont", "", "q", "q")
     assert settings_ui.run_settings_menu() == 0
     assert "model" not in registry.entry("myfont")
     assert settings.resolve_ai_settings(repo=str(repo)).model == "claude-opus-5"
@@ -253,7 +253,7 @@ def test_repos_screen_sets_and_clears_a_per_repo_model(monkeypatch, tmp_path):
 def test_repos_screen_refuses_an_unknown_account(monkeypatch, tmp_path, capsys):
     live = _repo(tmp_path, "Live")
     registry.add("live", str(live))
-    _answers(monkeypatch, "8", "b", "live", "nosuch", "q", "q")
+    _answers(monkeypatch, "9", "b", "live", "nosuch", "q", "q")
     assert settings_ui.run_settings_menu() == 0
     assert "unknown AI account" in capsys.readouterr().out
     assert "account" not in registry.entry("live")
@@ -346,8 +346,8 @@ def test_repo_menu_flags_a_missing_key_and_reaches_the_account_screen(monkeypatc
     repo = _repo(tmp_path, "MyFont")
     registry.add("myfont", str(repo), account="work")
 
-    # 5 -> the account screen for 'work' -> quit it -> quit the repo screen
-    _answers(monkeypatch, "5", "q", "q")
+    # 6 -> the account screen for 'work' -> quit it -> quit the repo screen
+    _answers(monkeypatch, "6", "q", "q")
     assert settings_ui.run_repo_menu("myfont") == 0
     out = capsys.readouterr().out
     assert "has no key" in out
@@ -355,8 +355,8 @@ def test_repo_menu_flags_a_missing_key_and_reaches_the_account_screen(monkeypatc
     # The hint must name the option that actually sets a key. It said "4" until the
     # Grounding row was inserted above it, sending anyone who followed it to the wrong
     # setting — so pin the number against the menu it describes, not just its wording.
-    assert "option 5 to set one" in out
-    assert "   5. Edit the account itself" in out
+    assert "option 6 to set one" in out
+    assert "   6. Edit the account itself" in out
 
 
 if __name__ == "__main__":

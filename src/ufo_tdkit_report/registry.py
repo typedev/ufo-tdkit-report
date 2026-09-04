@@ -27,9 +27,13 @@ from ufo_tdkit_report.config import config_dir
 
 # Per-repo keys an entry may carry besides "path". Deliberately small: anything that
 # would be a secret belongs in <config>/.env, keyed by account.
-OVERRIDE_KEYS = ("account", "provider", "model", "language", "strict_grounding")
+OVERRIDE_KEYS = ("account", "provider", "model", "language", "max_tokens", "strict_grounding")
 # Overrides whose value is a flag rather than a name.
 BOOL_OVERRIDE_KEYS = ("strict_grounding",)
+# …and whose value is a number. Stored as an int so a hand-edited `repos.json` reads
+# naturally; a value that is not a positive number is dropped rather than stored, so the
+# chain falls through to the account instead of carrying nonsense forward.
+INT_OVERRIDE_KEYS = ("max_tokens",)
 
 
 def _registry_path() -> Path:
@@ -47,6 +51,16 @@ def _normalize(value) -> dict | None:
             if key in BOOL_OVERRIDE_KEYS:
                 if isinstance(stored, bool):
                     entry[key] = stored
+            elif key in INT_OVERRIDE_KEYS:
+                # `repos.json` is hand-editable, so accept the number written either way
+                # and drop anything that is not a positive one — the chain then falls
+                # through to the account, which is the safe direction for a token cap.
+                try:
+                    number = int(stored)
+                except (TypeError, ValueError):
+                    continue
+                if number > 0:
+                    entry[key] = number
             elif isinstance(stored, str) and stored.strip():
                 entry[key] = stored.strip()
         return entry
@@ -100,6 +114,15 @@ def add(name: str, repo_path: str, **overrides) -> str:
             entry.pop(key, None)
         elif key in BOOL_OVERRIDE_KEYS:
             entry[key] = bool(value)
+        elif key in INT_OVERRIDE_KEYS:
+            try:
+                number = int(str(value).strip())
+            except ValueError:
+                number = 0
+            if number > 0:
+                entry[key] = number
+            else:
+                entry.pop(key, None)
         elif value.strip():
             entry[key] = value.strip()
     mapping[name] = entry

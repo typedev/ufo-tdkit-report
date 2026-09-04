@@ -7,7 +7,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.5.3] - 2026-09-04
+
+Found by using the tool: a DeepSeek reasoner spent all 8192 tokens thinking and wrote
+nothing, and the only way to give it more room was a flag typed on every run. Fixing that
+turned up two older bugs in the same code.
+
 ### Added
+- **The completion cap is a setting, not only a flag.** `tdreport set-max-tokens 32000`
+  for an account, `tdreport repo <name> max-tokens 32000` for one repository, and it
+  resolves through the same chain as everything else — explicit > repo > account >
+  built-in. The built-in stays 8192 deliberately: `max_tokens` is one number sent to all
+  fourteen providers, and some models cap their output well below a value chosen to suit
+  a talkative one, so raising it globally would break the providers that need it least.
+  Both interactive screens gained the row, and a hand-edited junk value in `settings.json`
+  or `repos.json` falls through to the default rather than taking the tool down — the CLI
+  rejects junk loudly instead, because there the author is present to be told.
 - **`.github/workflows/publish.yml`: publishing the GitHub Release uploads to PyPI with no
   stored credential.** GitHub mints a short-lived OIDC token proving which workflow in
   which repository is running; PyPI checks it against a registered trusted publisher and
@@ -21,7 +38,21 @@ All notable changes to this project are documented here. The format follows
   until then it fails at the final step having uploaded nothing, and `make publish`
   remains the manual path.
 
+### Fixed
+- **`--strict-grounding` did nothing.** `narrate` and `narrate_commit` accepted
+  `strict_grounding` and never passed it to the resolver, so the flag, the library
+  argument, and everything documented about them were inert; only a stored account or repo
+  setting had any effect. A safety flag that looks wired and is not is worse than one that
+  does not exist. Now passed through, and pinned by a test that asserts an ungrounded
+  narration is actually refused rather than asserting the signature.
+- **`max_tokens` was frozen into two public signatures** (`max_tokens: int =
+  DEFAULT_MAX_TOKENS`) — the exact pattern CLAUDE.md forbids for model and provider, and
+  for the same reason: it silently overrode whatever the owner had configured. Both are
+  `| None` now and resolve internally.
+
 ### Changed
+- `DEFAULT_MAX_TOKENS` moved to `providers.py`, where the other built-in defaults live;
+  `narrator` re-exports it, so the name every caller already used still works.
 - Documented that **the PyPI history starts at 0.5.2**. Earlier versions are git tags and
   GitHub Releases only, so an exact pin below that resolves to nothing from the index —
   invisible from here, and confusing for anyone trying to install a specific earlier
@@ -564,7 +595,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.2...v0.5.3
 [0.5.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.3...v0.5.0

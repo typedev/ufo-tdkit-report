@@ -42,6 +42,7 @@ def settings_snapshot(account: str | None = None) -> dict:
         "language": resolved.language,
         "base_url": resolved.base_url,
         "grounding": "strict" if resolved.strict_grounding else "warn",
+        "max_tokens": resolved.max_tokens,
         "key": settings.masked_key(name),
         "accounts": sorted(settings.accounts()),
         "repos": {
@@ -126,6 +127,11 @@ def repo_snapshot(name: str) -> dict:
         "grounding_source": (
             "this repo" if "strict_grounding" in entry else f"account '{account.name}'"
         ),
+        "max_tokens": resolved.max_tokens,
+        "max_tokens_source": (
+            "this repo" if entry.get("max_tokens")
+            else (f"account '{account.name}'" if account.max_tokens else "built-in default")
+        ),
         "key": settings.masked_key(account.name),
         "needs_key": resolved.provider.requires_key,
     }
@@ -143,6 +149,7 @@ def render_repo_settings(name: str, *, as_json: bool = False) -> str:
         ("Model", snap["model"] or "(not set)", snap["model_source"]),
         ("Language", snap["language"], snap["language_source"]),
         ("Grounding", snap["grounding"], snap["grounding_source"]),
+        ("Max tokens", str(snap["max_tokens"]), snap["max_tokens_source"]),
     ):
         lines.append(f"  {label:<10} {value:<28} from {origin}")
     return "\n".join(lines)
@@ -238,13 +245,14 @@ def run_repo_menu(name: str) -> int:
         print(f"   2. Model      {(snap['model'] or '(not set)'):<22} from {snap['model_source']}")
         print(f"   3. Language   {snap['language']:<22} from {snap['language_source']}")
         print(f"   4. Grounding  {snap['grounding']:<22} from {snap['grounding_source']}")
-        print("   5. Edit the account itself (affects every repo using it)")
+        print(f"   5. Max tokens {str(snap['max_tokens']):<22} from {snap['max_tokens_source']}")
+        print("   6. Edit the account itself (affects every repo using it)")
         print("   q. Quit")
         if snap["needs_key"] and snap["key"] == "not set":
             # The key belongs to the account, so it is set through option 5 (the account
             # screen) — option 1 only picks a *different* account, which may already have
             # one. This line named option 4 until the Grounding row pushed everything down.
-            print(f"\n   ! account '{snap['account']}' has no key — option 5 to set one, "
+            print(f"\n   ! account '{snap['account']}' has no key — option 6 to set one, "
                   f"or option 1 to use an account that has one")
         if snap["overrides"].get("provider"):
             print("\n   ! this repo overrides the provider but uses the account's key —")
@@ -278,6 +286,8 @@ def run_repo_menu(name: str) -> int:
             elif answer == "4":
                 _edit_repo_grounding(name)
             elif answer == "5":
+                _edit_repo_max_tokens(name)
+            elif answer == "6":
                 run_settings_menu(snap["account"])
             else:
                 print(f"no option '{answer}'")
@@ -503,6 +513,44 @@ def run_accounts_menu(highlight: str | None = None) -> int:
             print(f"error: {exc}")
 
 
+def _edit_repo_max_tokens(name: str) -> None:
+    """This repo's own completion cap. Empty keeps it; 0 hands it back to the account."""
+    from ufo_tdkit_report.cli import _parse_token_cap
+
+    entry = registry.entry(name) or {}
+    current = settings.resolve_ai_settings(repo=entry.get("path")).max_tokens
+    answer = _prompt(f"\n  Max tokens for '{name}', 0 to use the account's [{current}]: ")
+    if answer is None or not answer.strip():
+        print(f"unchanged: {current}")
+        return
+    chosen = _parse_token_cap(answer)
+    if chosen is None:
+        return
+    registry.add(name, entry["path"], max_tokens=chosen)
+    resolved = settings.resolve_ai_settings(repo=entry["path"]).max_tokens
+    print(f"max tokens: {resolved}" + ("" if chosen else " (from the account)"))
+
+
+def _edit_max_tokens(account: str) -> None:
+    """The completion cap for this account. Empty keeps it; 0 hands it back to the default."""
+    from ufo_tdkit_report.cli import _parse_token_cap
+    from ufo_tdkit_report.narrator import DEFAULT_MAX_TOKENS
+
+    current = settings.resolve_ai_settings(account=account).max_tokens
+    print(f"\n  Completion cap for account '{account}'. This covers the WHOLE completion —")
+    print("  a reasoning model spends the same budget on thinking and on the answer, and")
+    print("  can consume all of it before writing a word.")
+    answer = _prompt(f"\n  Tokens, or 0 for the built-in {DEFAULT_MAX_TOKENS} [{current}]: ")
+    if answer is None or not answer.strip():
+        print(f"unchanged: {current}")
+        return
+    chosen = _parse_token_cap(answer)
+    if chosen is None:
+        return
+    settings.update_account(account, max_tokens=chosen)
+    print(f"max tokens: {settings.resolve_ai_settings(account=account).max_tokens}")
+
+
 def _edit_grounding(account: str) -> None:
     """Strict or warn, for this account.
 
@@ -613,9 +661,10 @@ def run_settings_menu(account: str | None = None) -> int:
         print(f"   5. Base URL      {snap['base_url'] or '(provider default)'}")
         print(f"   6. Grounding     {snap['grounding']}"
               f"{'  (refuse a narration the facts do not support)' if snap['grounding'] == 'strict' else ''}")
-        print(f"   7. Accounts      {', '.join(snap['accounts'])}")
+        print(f"   7. Max tokens    {snap['max_tokens']}")
+        print(f"   8. Accounts      {', '.join(snap['accounts'])}")
         bound = sum(1 for e in snap["repos"].values() if e.get("account"))
-        print(f"   8. Repos         {len(snap['repos'])} registered, {bound} bound")
+        print(f"   9. Repos         {len(snap['repos'])} registered, {bound} bound")
         print("   q. Quit")
         answer = _prompt("\nNumber to change [q]: ")
         if answer is None or answer in ("", "q", "quit"):
@@ -627,13 +676,14 @@ def run_settings_menu(account: str | None = None) -> int:
             "4": _edit_language,
             "5": _edit_base_url,
             "6": _edit_grounding,
+            "7": _edit_max_tokens,
         }
         try:
             if answer in actions:
                 actions[answer](account)
-            elif answer == "7":
-                run_accounts_menu(account)
             elif answer == "8":
+                run_accounts_menu(account)
+            elif answer == "9":
                 _repos_screen()
             else:
                 print(f"no option '{answer}'")

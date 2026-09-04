@@ -39,6 +39,7 @@ from ufo_tdkit_report.config import (
 )
 from ufo_tdkit_report.providers import (
     DEFAULT_LANGUAGE,
+    DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
     NarratorError,
@@ -61,6 +62,8 @@ class Account:
     model: str = ""
     language: str = ""
     base_url: str = ""
+    # 0 means unset, so the chain falls through rather than freezing a number here.
+    max_tokens: int = 0
     # Refuse a narration whose tokens the facts do not support, rather than warning.
     # A per-account setting because it belongs to the MODEL: a small local one earns
     # strictness, a large hosted one usually does not.
@@ -72,9 +75,26 @@ class Account:
             value = getattr(self, key)
             if value:
                 out[key] = value
+        if self.max_tokens:
+            out["max_tokens"] = self.max_tokens
         if self.strict_grounding:
             out["strict_grounding"] = True
         return out
+
+
+def _as_positive_int(value) -> int:
+    """A stored/typed token cap as an int, or 0 for unset.
+
+    Tolerant on read because `settings.json` and `repos.json` are files people edit by
+    hand: a junk value falls back to unset (and so to the built-in default) rather than
+    taking the whole tool down on a typo. A *rejected* value is the CLI's job, where
+    there is someone to tell.
+    """
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return number if number > 0 else 0
 
 
 class UnboundRepoWarning(UserWarning):
@@ -95,6 +115,7 @@ class AiSettings:
     language: str
     base_url: str
     api_key: str | None
+    max_tokens: int = DEFAULT_MAX_TOKENS
     strict_grounding: bool = False
     # True/False when a repo was named (did it match a registry entry?), None when none
     # was. False is the dangerous case: settings silently came from the default account.
@@ -114,7 +135,8 @@ class AiSettings:
         return (
             f"AiSettings(account={self.account!r}, provider={self.provider.name!r}, "
             f"model={self.model!r}, language={self.language!r}, base_url={self.base_url!r}, "
-            f"api_key={self.masked_api_key!r}, strict_grounding={self.strict_grounding!r}, "
+            f"api_key={self.masked_api_key!r}, max_tokens={self.max_tokens!r}, "
+            f"strict_grounding={self.strict_grounding!r}, "
             f"repo_bound={self.repo_bound!r})"
         )
 
@@ -198,6 +220,7 @@ def accounts() -> dict[str, Account]:
                 model=str(value.get("model") or ""),
                 language=str(value.get("language") or ""),
                 base_url=str(value.get("base_url") or ""),
+                max_tokens=_as_positive_int(value.get("max_tokens")),
                 strict_grounding=bool(value.get("strict_grounding")),
             )
     out.setdefault(DEFAULT_ACCOUNT, _legacy_default_account())
@@ -247,6 +270,7 @@ def add_account(
     model: str = "",
     language: str = "",
     base_url: str = "",
+    max_tokens: int = 0,
     strict_grounding: bool = False,
     make_default: bool = False,
 ) -> Account:
@@ -255,7 +279,8 @@ def add_account(
     get_provider(provider)  # reject an unknown provider before writing anything
     account = Account(
         name=name, provider=provider, model=model, language=language,
-        base_url=base_url, strict_grounding=strict_grounding,
+        base_url=base_url, max_tokens=_as_positive_int(max_tokens),
+        strict_grounding=strict_grounding,
     )
     data = load_settings()
     stored = data.get("accounts")
@@ -272,15 +297,19 @@ def add_account(
 def update_account(name: str | None = None, **fields) -> Account:
     """Change fields of one account (the default when omitted); returns the new state."""
     account = get_account(name)
-    unknown = set(fields) - {"provider", "model", "language", "base_url", "strict_grounding"}
+    unknown = set(fields) - {"provider", "model", "language", "base_url", "max_tokens", "strict_grounding"}
     if unknown:
         raise ValueError(f"unknown account field(s): {', '.join(sorted(unknown))}")
     if "provider" in fields:
         get_provider(fields["provider"])
-    coerced = {
-        k: bool(v) if k == "strict_grounding" else (v or "")
-        for k, v in fields.items()
-    }
+    coerced = {}
+    for key, value in fields.items():
+        if key == "strict_grounding":
+            coerced[key] = bool(value)
+        elif key == "max_tokens":
+            coerced[key] = _as_positive_int(value)
+        else:
+            coerced[key] = value or ""
     updated = replace(account, **coerced)
     data = load_settings()
     stored = data.get("accounts")
@@ -389,6 +418,7 @@ def resolve_ai_settings(
     language: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    max_tokens: int | None = None,
     strict_grounding: bool | None = None,
 ) -> AiSettings:
     """Resolve narration settings once: explicit > repo > account > default > built-in.
@@ -420,6 +450,14 @@ def resolve_ai_settings(
         language=(language or entry.get("language") or acct.language or DEFAULT_LANGUAGE).strip(),
         base_url=(base_url or acct.base_url or provider_obj.base_url),
         api_key=api_key or account_key(acct.name),
+        # Same chain as everything else, ending at the built-in rather than at a number
+        # frozen into a signature — a reasoning model's whole completion has to fit here.
+        max_tokens=(
+            _as_positive_int(max_tokens)
+            or _as_positive_int(entry.get("max_tokens"))
+            or acct.max_tokens
+            or DEFAULT_MAX_TOKENS
+        ),
         repo_bound=repo_bound,
         strict_grounding=_first_not_none(
             strict_grounding, entry.get("strict_grounding"), acct.strict_grounding

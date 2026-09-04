@@ -30,6 +30,7 @@ from ufo_tdkit_report.config import (
 from ufo_tdkit_report.model import RangeReport, SourceReport
 from ufo_tdkit_report.providers import (
     DEFAULT_LANGUAGE,
+    DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
     PROVIDERS,
@@ -56,6 +57,7 @@ from ufo_tdkit_report.settings import (
 # Re-exported so the pre-accounts import sites keep working unchanged.
 __all__ = [
     "DEFAULT_LANGUAGE",
+    "DEFAULT_MAX_TOKENS",
     "DEFAULT_MODEL",
     "DEFAULT_PROVIDER",
     "KNOWN_MODELS",
@@ -82,7 +84,6 @@ __all__ = [
 # reasoning first — 2048 was enough for the prose but got eaten entirely by thinking on
 # DeepSeek's reasoners, yielding an empty answer. It is a cap, not a charge: nothing is
 # paid for tokens that are not generated, so it costs a non-reasoning model nothing.
-DEFAULT_MAX_TOKENS = 8192
 DEFAULT_TIMEOUT = 60
 # Local servers load the model on the first request; a cloud-sized timeout is not enough.
 LOCAL_TIMEOUT = 300
@@ -330,7 +331,7 @@ def narrate_commit(
     repo: str | None = None,
     strict_grounding: bool | None = None,
     transport=_http_post,
-    max_tokens: int = DEFAULT_MAX_TOKENS,
+    max_tokens: int | None = None,
     timeout: int | None = None,
 ) -> str:
     """Narrate the facts as a grounded git commit message (subject + body, no <details>).
@@ -346,7 +347,8 @@ def narrate_commit(
     # account's — forgetting used to fail silently, with the wrong provider and key.
     repo = repo or getattr(report, "repo", None)
     resolved = resolve_ai_settings(
-        repo=repo, account=account, provider=provider, model=model, language=language, api_key=api_key
+        repo=repo, account=account, provider=provider, model=model, language=language,
+        api_key=api_key, max_tokens=max_tokens, strict_grounding=strict_grounding,
     )
     warn_if_unbound(resolved, repo)
     settings = resolved.require()
@@ -361,7 +363,7 @@ def narrate_commit(
 
     msg = _call(
         system, user, settings=settings, transport=transport,
-        max_tokens=max_tokens, timeout=_timeout_for(settings, timeout),
+        max_tokens=settings.max_tokens, timeout=_timeout_for(settings, timeout),
     ).rstrip()
     # A commit message is used verbatim by `git commit -F`, which does not strip comments
     # — so a grounding note must never be appended to it. It is raised as a warning the
@@ -381,7 +383,7 @@ def narrate(
     repo: str | None = None,
     strict_grounding: bool | None = None,
     transport=_http_post,
-    max_tokens: int = DEFAULT_MAX_TOKENS,
+    max_tokens: int | None = None,
     timeout: int | None = None,
 ) -> str:
     """Return a grounded Markdown narrative with the deterministic facts attached.
@@ -396,14 +398,15 @@ def narrate(
     # account's — forgetting used to fail silently, with the wrong provider and key.
     repo = repo or getattr(report, "repo", None)
     resolved = resolve_ai_settings(
-        repo=repo, account=account, provider=provider, model=model, language=language, api_key=api_key
+        repo=repo, account=account, provider=provider, model=model, language=language,
+        api_key=api_key, max_tokens=max_tokens, strict_grounding=strict_grounding,
     )
     warn_if_unbound(resolved, repo)
     settings = resolved.require()
     system, user = build_messages(report, language=settings.language)
     narrative = _call(
         system, user, settings=settings, transport=transport,
-        max_tokens=max_tokens, timeout=_timeout_for(settings, timeout),
+        max_tokens=settings.max_tokens, timeout=_timeout_for(settings, timeout),
     )
 
     from ufo_tdkit_report.render import attribution

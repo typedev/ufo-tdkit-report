@@ -5,7 +5,7 @@ which level owns what, there is nothing left to remember.
 
 | | **Account** | **Repository** |
 | --- | --- | --- |
-| owns | provider, **API key**, default model, default language, base URL, grounding strictness | which account to use, and a model / language / grounding override for this repo only |
+| owns | provider, **API key**, default model, default language, base URL, grounding strictness, token cap | which account to use, and a model / language / grounding / token-cap override for this repo only |
 | how many | one (`default`) or several — personal, corporate, local | one entry per registered repo |
 | has a key | yes, exactly one | never |
 
@@ -27,7 +27,8 @@ Resolution order, top down — the first thing found wins. This one chain applie
 library callers too, not just the CLI.
 
 1. **A flag on the run** — `--ai-model`, `--ai-lang`, `--ai-provider`, `--ai-account`,
-   `--strict-grounding` / `--no-strict-grounding` (in the library, `narrate(model=…)`)
+   `--ai-max-tokens`, `--strict-grounding` / `--no-strict-grounding` (in the library,
+   `narrate(model=…)`)
 
 Narration itself is **on by default**; `--no-ai` turns it off for one run, `--ai` refuses
 to fall back to the deterministic report when it cannot be produced.
@@ -54,6 +55,7 @@ to fall back to the deterministic report when it cannot be produced.
 | Prose language | `tdreport set-lang Spanish` | account |
 | Endpoint (local model, custom server) | `tdreport set-url http://localhost:11434/v1` | account |
 | Refuse a narration the facts do not support | `tdreport set-grounding strict` | account |
+| Give a reasoning model room to think | `tdreport set-max-tokens 32000` | account |
 
 ### Change it for one repo
 
@@ -63,6 +65,7 @@ to fall back to the deterministic report when it cannot be produced.
 | A different language | `tdreport repo MyFont language German` | repo |
 | Hand a field back to the account | `tdreport repo MyFont clear model` (or `clear` for all) | repo |
 | Strict or lenient grounding | `tdreport repo MyFont grounding strict` | repo |
+| A larger completion cap | `tdreport repo MyFont max-tokens 32000` | repo |
 
 ### A different key or provider for some repos
 
@@ -121,13 +124,14 @@ Settings — repo 'AcmeSans'
    2. Model      gpt-5-mini             from this repo
    3. Language   German                 from account 'work'
    4. Grounding  strict                 from account 'work'
-   5. Edit the account itself (affects every repo using it)
+   5. Max tokens 32000                  from this repo
+   6. Edit the account itself (affects every repo using it)
    q. Quit
 ```
 
 For a repo you do not pick a provider — you pick an **account**, and option 1 lists them
-with what each one actually brings. Options 2, 3 and 4 set overrides for this repo only;
-an empty answer clears one. Option 5 jumps to the account, which affects every repo using
+with what each one actually brings. Options 2 through 5 set overrides for this repo only;
+an empty answer clears one. Option 6 jumps to the account, which affects every repo using
 it.
 
 `tdreport repo <name>` prints the same resolution without a menu, for scripts.
@@ -152,7 +156,8 @@ Keys are never read from the process environment, a repo `.env`, or the cwd, so 
 ## Rule of thumb
 
 - **Account** — provider and key. They always travel together.
-- **Repo** — model, language and grounding strictness, when this one repo needs its own.
+- **Repo** — model, language, grounding strictness and the token cap, when this one repo
+  needs its own.
 
 A second account is needed only when you need a **different key or a different provider**.
 Different models on the same key is a repo override, not a new account.
@@ -172,8 +177,11 @@ fallback list does not mean the provider only has two models — it means nobody
 
 **`the model hit its token cap … and produced no text`.** A reasoning model spends the
 completion budget on its private reasoning *before* writing anything, so a cap sized for
-the prose can be consumed entirely. The default is 8192; raise it for one run with
-`--ai-max-tokens 16000`, or pick a non-reasoning model.
+the prose can be consumed entirely — and the whole 8192 can go on thinking, leaving
+nothing for the answer. Raise it where it belongs: `tdreport set-max-tokens 32000` for the
+account, `tdreport repo <name> max-tokens 32000` for one repo, `--ai-max-tokens` for one
+run. Or pick a non-reasoning model. The built-in default stays conservative because
+`max_tokens` goes to every provider and some models cap their output well below it.
 
 **`grounding check failed: … tokens do not appear in the facts`.** The narration named
 identifiers the facts do not contain, and this account or repo is set to `strict`. Read
