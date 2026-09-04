@@ -575,7 +575,13 @@ module: `UnboundRepoWarning` (an unregistered repo fell back to the default acco
 `GroundingWarning` (the narration used identifiers the facts do not support) and
 `InsecureKeyFileWarning` (the key file is readable by others). They are *defined* in
 `settings`, `narrator` and `config` respectively — beside the checks that raise them —
-so the root is the address to import from:
+so the root is the address to import from in **production** code.
+
+A *test* reaching past the root is a different thing, and a good one: raising a warning
+through its defining module while your production code catches the root-imported name is
+how the re-export gets verified from the outside — if one ever became a distinct subclass
+rather than the same object, that test fails. `tests/test_report_public_api.py` does
+exactly this here, and TDKit's suite does it from the consumer side.
 
 ```python
 import warnings
