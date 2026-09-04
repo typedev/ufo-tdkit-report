@@ -7,7 +7,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Changed
+- Documentation names the **defining module** of each warning category, not only the root
+  export. The three do not share a module — they live beside the checks that raise them
+  (`UnboundRepoWarning` in `settings`, `GroundingWarning` in `narrator`,
+  `InsecureKeyFileWarning` in `config`) — so a consumer following the shape of the first
+  two guesses `settings` for the third and gets an ImportError. Reported by TDKit, who hit
+  exactly that. The README also notes why a consumer that must tolerate an older install
+  than it asks for should read the categories off the module by name: one combined import
+  fails entirely when a single name is missing, and the one silently lost that way is
+  `GroundingWarning` — the only automatic signal that a narration invented something.
 
 ## [0.5.0] - 2026-09-03
 

@@ -94,6 +94,12 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   the facts do not. Near-miss candidates come from `identifiers()`, never from
   `vocabulary()`: comparing against every word in the facts made `changed` a "near miss"
   of `changes` in the report's own heading.
+- The three **warning categories** (`UnboundRepoWarning` in `settings`,
+  `GroundingWarning` in `narrator`, `InsecureKeyFileWarning` in `config`) live beside the
+  checks that raise them, so they do *not* share a module — the root export is the
+  address consumers should use, and it is the one to document. Someone following the
+  shape of the first two guesses `settings` for the third and gets an ImportError; that
+  has already happened once, so name the defining module whenever you add a fourth.
 - **`settings.py`** owns AI **accounts** and `resolve_ai_settings` — the single
   precedence chain (see below). **`config.py`** holds the config-dir/`.env` primitives
   both `settings` and `registry` need (split out to avoid an import cycle; still

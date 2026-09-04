@@ -569,17 +569,37 @@ caller restating them. When a repository is named but not registered — meaning
 settings came from the default account — a `UnboundRepoWarning` says so rather than
 letting it pass unnoticed.
 
-Both warning categories a public call can raise are exported from the package root
+Three warning categories a public call can raise are exported from the package root
 alongside the calls themselves, so catching them never means importing from an internal
-module:
+module: `UnboundRepoWarning` (an unregistered repo fell back to the default account),
+`GroundingWarning` (the narration used identifiers the facts do not support) and
+`InsecureKeyFileWarning` (the key file is readable by others). They are *defined* in
+`settings`, `narrator` and `config` respectively — beside the checks that raise them —
+so the root is the address to import from:
 
 ```python
 import warnings
-from ufo_tdkit_report import GroundingWarning, UnboundRepoWarning, narrate
+from ufo_tdkit_report import GroundingWarning, InsecureKeyFileWarning, UnboundRepoWarning, narrate
 
 with warnings.catch_warnings(record=True) as notes:
-    warnings.simplefilter("always", (UnboundRepoWarning, GroundingWarning))
+    warnings.simplefilter("always", (UnboundRepoWarning, GroundingWarning, InsecureKeyFileWarning))
     prose = narrate(report)                      # route them into your own report…
+```
+
+If your code must tolerate an *older* install than it asks for — a stale `uv tool`
+install, say, which `uv sync` does not update — read them off the module by name instead.
+One combined `from … import A, B, C` fails entirely when one name is missing, and the one
+you would silently lose is `GroundingWarning`: the only automatic signal that a narration
+invented something.
+
+```python
+import ufo_tdkit_report as report_pkg
+
+categories = tuple(
+    c for c in (getattr(report_pkg, n, None) for n in
+                ("UnboundRepoWarning", "GroundingWarning", "InsecureKeyFileWarning"))
+    if c is not None
+)
 ```
 
 `ufo_tdkit_report.settings.UnboundRepoWarning` and `ufo_tdkit_report.narrator.

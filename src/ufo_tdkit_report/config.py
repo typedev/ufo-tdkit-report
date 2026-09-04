@@ -76,6 +76,14 @@ class InsecureKeyFileWarning(UserWarning):
 
     Its own category so a console front-end can render it as one readable note and a
     library consumer can route it somewhere useful, like every other warning here.
+
+    Import it from the package root — ``from ufo_tdkit_report import
+    InsecureKeyFileWarning``. It is defined *here* rather than beside
+    ``UnboundRepoWarning`` in ``settings`` because the check it belongs to is a property
+    of the key file, which is this module's, and ``settings`` imports ``config`` rather
+    than the other way round. A consumer following the shape of the other two categories
+    guesses ``.settings`` and gets an ImportError, which is why the root export is the
+    documented address and this paragraph exists (TDKit hit exactly that).
     """
 
 
