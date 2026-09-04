@@ -9,6 +9,20 @@ All notable changes to this project are documented here. The format follows
 
 _Nothing yet._
 
+## [0.5.2] - 2026-09-04
+
+### Changed
+- **`make publish` asks for the API token instead of expecting it in the environment.**
+  `UV_PUBLISH_TOKEN` and `~/.pypirc` still win where they are set, so CI is unaffected;
+  otherwise the token is read with `read -rs` at the moment it is used, and passed to
+  `uv publish` as a per-command variable. The alternatives both leak: `export` puts the
+  token in the shell history and then in the environment of every later command, and
+  `--token` on a command line is visible in `ps` to anyone else on the machine. Input is
+  hidden, the same bargain `tdreport set-key` already makes. Without a token and without
+  a terminal to ask on, it says so and stops rather than hanging. A token that does not
+  look like one is noted, not rejected — TestPyPI and PyPI both issue `pypi-` prefixes,
+  but guessing at a credential's shape is not this tool's business.
+
 ## [0.5.1] - 2026-09-04
 
 Packaging and documentation. No behaviour change — the code is what 0.5.0 shipped, plus
@@ -526,7 +540,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.2...HEAD
+[0.5.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/typedev/ufo-tdkit-report/compare/v0.4.2...v0.4.3

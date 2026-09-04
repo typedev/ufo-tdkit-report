@@ -5,10 +5,15 @@
 # wrong artefact is permanent under that number. Everything before the upload is
 # therefore a gate, and each one exists because it is cheap here and expensive after.
 #
-# Credentials are never stored in this file. `uv publish` reads UV_PUBLISH_TOKEN, or
-# ~/.pypirc. Better still, publish from CI with PyPI Trusted Publishing and keep no
-# token anywhere -- see the note at the bottom of this file.
+# Credentials are never stored in this file, and never asked for until the moment they
+# are used: UV_PUBLISH_TOKEN if set, else ~/.pypirc, else a hidden prompt. Better still,
+# publish from CI with Trusted Publishing and keep no token anywhere -- see the bottom.
 
+# bash, not /bin/sh -- and not incidentally: the hidden token prompt below uses
+# `read -rs -p`, and dash (which /bin/sh is on Debian and Ubuntu) supports neither -s
+# nor -p. Under dash the read silently yields an empty string, so the prompt would look
+# like it worked and then abort. Removing this line breaks `make publish` on the systems
+# most likely to run it.
 SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 
@@ -78,8 +83,34 @@ verify: build ## Check the metadata renders, and that the built wheel actually r
 
 # --- publishing --------------------------------------------------------------------
 
-publish-test: verify ## Upload to TestPyPI (safe rehearsal; needs UV_PUBLISH_TOKEN for TestPyPI)
-	uv publish --publish-url https://test.pypi.org/legacy/ dist/*
+# How the token reaches `uv publish`, in order of preference:
+#   1. UV_PUBLISH_TOKEN already in the environment (CI);
+#   2. ~/.pypirc, which uv reads by itself;
+#   3. a hidden prompt, right before the upload and nowhere else.
+#
+# The prompt is the default for a person at a terminal, because the alternatives leak:
+# `export` puts the token in the shell history and then in the environment of every
+# later command, and `--token` on a command line is visible in `ps` to anyone on the
+# box. Passing it as a per-command environment variable is neither. It is read with
+# `read -rs`, so a paste shows nothing at all -- the same bargain as `tdreport set-key`.
+define upload
+@if [ -n "$${UV_PUBLISH_TOKEN:-}" ] || [ -f "$$HOME/.pypirc" ]; then \
+  uv publish $(1) dist/*; \
+else \
+  if [ ! -t 0 ]; then \
+    echo "error: no UV_PUBLISH_TOKEN, no ~/.pypirc, and no terminal to ask on."; \
+    echo "       In CI, set UV_PUBLISH_TOKEN -- or better, use Trusted Publishing (see below)."; \
+    exit 1; \
+  fi; \
+  read -rs -p "  API token (input is hidden -- paste and press Enter): " token; echo; \
+  test -n "$$token" || { echo "  aborted: empty token"; exit 1; }; \
+  case "$$token" in pypi-*) ;; *) echo "  note: that does not start with 'pypi-'; tokens do. Continuing anyway." ;; esac; \
+  UV_PUBLISH_TOKEN="$$token" uv publish $(1) dist/*; \
+fi
+endef
+
+publish-test: verify ## Upload to TestPyPI (safe rehearsal; asks for a TestPyPI token)
+	$(call upload,--publish-url https://test.pypi.org/legacy/)
 	@echo
 	@echo "Installed check:"
 	@echo "  uv tool install --index-url https://test.pypi.org/simple/ \\"
@@ -94,7 +125,7 @@ publish: guard-clean guard-tag guard-unpublished check verify ## Upload to PyPI 
 	  read -r -p "  Type the version to confirm: " answer; \
 	  test "$$answer" = "$(VERSION)" || { echo "  aborted"; exit 1; }; \
 	fi
-	uv publish dist/*
+	$(call upload,)
 	@echo
 	@echo "Published. Remaining steps that PyPI does not do for you:"
 	@echo "  - gh release create $(TAG) --title $(TAG) --notes-file <CHANGELOG section> --verify-tag --latest"
