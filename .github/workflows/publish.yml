@@ -40,9 +40,18 @@ jobs:
           python-version: "3.13"
           enable-cache: true
 
-      - name: The version must match the tag being released
-        if: github.ref_type == 'tag'
+      # Unconditional, deliberately. Guarding this with `if: ref_type == 'tag'` left a
+      # hole: a manual run from a branch skipped the check entirely and would publish
+      # whatever pyproject happened to say, with no tag describing it — exactly what
+      # `make guard-tag` refuses locally. workflow_dispatch can select a tag, so
+      # requiring one costs nothing legitimate.
+      - name: Refuse to publish anything but a tag whose version matches
         run: |
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "error: this ran on $GITHUB_REF_TYPE '$GITHUB_REF_NAME', not a tag."
+            echo "       Publish from a release, or dispatch this workflow on a tag."
+            exit 1
+          fi
           version=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml | head -1)
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "error: pyproject says $version but this is $GITHUB_REF_NAME."
