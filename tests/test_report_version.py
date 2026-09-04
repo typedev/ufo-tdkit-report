@@ -70,15 +70,19 @@ def test_an_editable_install_reports_the_source_version_not_the_installed_one():
     environment is an editable install, so this test exercises the real path rather than
     a mock: `__version__` must agree with `pyproject.toml`, whatever the metadata says.
     """
+    import re
     from pathlib import Path
-
-    import tomllib
 
     import ufo_tdkit_report
 
+    # Regex, not `tomllib` — that is 3.11+ stdlib and this project's floor is 3.10. The
+    # test above this one says so in a comment; `_editable_source_version` parses it the
+    # same way for the same reason. I imported tomllib here anyway and CI's three 3.10
+    # jobs caught it, which is what a version matrix is for.
     root = Path(__file__).resolve().parent.parent
-    declared = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
-    assert ufo_tdkit_report.__version__ == declared
+    found = re.search(r'^version = "([^"]+)"', (root / "pyproject.toml").read_text(encoding="utf-8"), re.M)
+    assert found, "pyproject.toml has no version line"
+    assert ufo_tdkit_report.__version__ == found.group(1)
 
 
 def test_the_version_lookup_never_raises(monkeypatch):

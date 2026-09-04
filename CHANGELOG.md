@@ -7,7 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- **The test suite failed on Python 3.10**, the project's own supported floor: a test
+  added in 0.5.4 imported `tomllib`, which is 3.11+ stdlib. Test-only — the released
+  package is unaffected, and the production code parses `pyproject.toml` with a regex
+  precisely to avoid this. CI's three 3.10 jobs caught it, which is what the matrix is
+  for; the gap was local runs happening only on 3.13. CLAUDE.md now names the trap and
+  the one-line command that would have found it before the push.
 
 ## [0.5.4] - 2026-09-04
 

@@ -18,7 +18,8 @@ Groq, DeepSeek, Qwen, Kimi, GLM, or a local model.
 The project uses `uv` (there is a `uv.lock` and `.venv`).
 
 ```bash
-uv run pytest -q                              # full test suite (~230 tests, ~3s)
+uv run pytest -q                              # full test suite (~255 tests, ~3s)
+uv run --python 3.10 --extra dev pytest -q    # …on the SUPPORTED FLOOR, before pushing
 uv run pytest tests/test_report_rollup.py     # one test file
 uv run pytest -k outline_redraw               # one test by name substring
 uv run ruff check .                           # lint (config in pyproject.toml)
@@ -29,6 +30,13 @@ uv run tdreport --version                     # version (also in every report fo
 
 There is no separate build/typecheck step. `ruff` enforces `E,W,F,I,N` at line-length 120,
 target py310.
+
+**`requires-python` is `>=3.10`, and the local `.venv` is not.** Nothing in ruff or the
+default test run catches a 3.11+ stdlib import — `tomllib` is the one that bites, since
+reading `pyproject.toml` is a natural thing to reach for; parse it with a regex, as
+`_editable_source_version` and `tests/test_report_version.py` both do. CI's three 3.10
+jobs are the backstop and they work, but finding it after a release rather than before is
+a wasted round trip: run the floor locally when you touch imports.
 
 ## Architecture
 
