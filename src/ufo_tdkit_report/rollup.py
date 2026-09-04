@@ -133,8 +133,12 @@ def _summarize(key: tuple, group: list[ChangeFact], schema=None) -> str:
         return f"glyph `{sample.scope.glyph}` {verb}{master_suffix}"
 
     if fact_type is FactType.OUTLINE_REDRAWN:
-        moved = int(max((f.magnitude or 0) for f in group))
-        return f"outline redrawn in `{sample.scope.glyph}` (~{_plural(moved, 'point')} moved){master_suffix}"
+        # The point count is deliberately NOT rendered. It reads as precision and carries
+        # none: "~22 points moved" does not distinguish a nudged terminal from a redrawn
+        # bowl, it is approximate anyway, and a page of them is tiring to read for a
+        # number nobody acts on. `magnitude` still carries it — it drives sort order and
+        # threshold folding — so dropping it from the text costs no ordering.
+        return f"outline redrawn in `{sample.scope.glyph}`{master_suffix}"
 
     if fact_type is FactType.ADVANCE_CHANGED:
         deltas = [

@@ -61,6 +61,35 @@ def _render_facts(folded_facts) -> list[str]:
     return lines
 
 
+def _masters_touched(folded_facts) -> list[str]:
+    """Every master any fact touched, sorted. Deterministic: a value-based sort, no set order.
+
+    Each line already says how *many* masters it spans, which answers "is this one weight
+    or all of them". It does not answer "which ones", and that is the question asked at
+    the end of reading — collecting it by hand off twenty lines is exactly the work a
+    report should have done for you.
+    """
+    return sorted({
+        scope.master
+        for folded in folded_facts
+        for scope in folded.affected
+        if scope.master
+    })
+
+
+def _render_masters(folded_facts) -> list[str]:
+    """A closing roll-call of affected masters, or nothing when there is nothing to say.
+
+    Omitted for a single master: "Masters touched: MasterRegular" under a report whose
+    every line already says "across 1 master" is noise, and a section that is sometimes
+    empty teaches the reader to skip it.
+    """
+    masters = _masters_touched(folded_facts)
+    if len(masters) < 2:
+        return []
+    return ["", "### Masters touched", "- " + ", ".join(f"`{m}`" for m in masters)]
+
+
 def _credit(ai: bool = False, model: str | None = None, provider: str | None = None) -> str:
     """Bare credit text: tool + version (+ AI provider/model when narrated). No markup.
 
@@ -105,6 +134,7 @@ def render_report(report: SourceReport, *, footer: bool = True) -> str:
         return _with_footer(lines, footer)
 
     lines.extend(_render_facts(report.folded_facts))
+    lines.extend(_render_masters(report.folded_facts))
     return _with_footer(lines, footer)
 
 
@@ -140,6 +170,10 @@ def render_commit_message(report: SourceReport) -> str:
             continue
         lines.append(f"{section}:")
         lines.extend(bullets)
+    masters = _masters_touched(report.folded_facts)
+    if len(masters) > 1:
+        lines.append("")
+        lines.append(f"Masters touched: {', '.join(masters)}")
     # Plain trailer (not markdown) so it sits cleanly in the git commit message.
     lines.append("")
     lines.append(_credit())
@@ -166,4 +200,5 @@ def render_range_report(report: RangeReport, *, footer: bool = True) -> str:
         return _with_footer(lines, footer)
 
     lines.extend(_render_facts(report.folded_facts))
+    lines.extend(_render_masters(report.folded_facts))
     return _with_footer(lines, footer)

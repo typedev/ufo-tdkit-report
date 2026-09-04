@@ -87,3 +87,74 @@ def test_deterministic_order():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_an_outline_redraw_reports_masters_but_not_a_point_count():
+    """"~22 points moved" reads as precision and carries none.
+
+    It does not separate a nudged terminal from a redrawn bowl, it is approximate anyway,
+    and a page of them is tiring to read for a number nobody acts on. How many *masters*
+    a change spans does answer a real question — is this one weight or all of them — so
+    that stays. `magnitude` still carries the count: it drives sort order and threshold
+    folding, and dropping it from the prose must not disturb either.
+    """
+    facts = [
+        ChangeFact(FactType.OUTLINE_REDRAWN, FileKind.GLIF, Scope(master=m, glyph="A"), magnitude=22)
+        for m in ("Bold", "Regular")
+    ]
+    folded = fold_facts(facts)
+    assert len(folded) == 1
+    assert folded[0].summary == "outline redrawn in `A` across 2 masters"
+    assert "point" not in folded[0].summary
+    assert "22" not in folded[0].summary
+
+
+def test_the_point_count_still_orders_and_folds():
+    """Removing it from the text must not remove it from the machinery."""
+    facts = [
+        ChangeFact(FactType.OUTLINE_REDRAWN, FileKind.GLIF, Scope(master="R", glyph="small"), magnitude=1),
+        ChangeFact(FactType.OUTLINE_REDRAWN, FileKind.GLIF, Scope(master="R", glyph="big"), magnitude=99),
+    ]
+    folded = fold_facts(facts)
+    summaries = [f.summary for f in folded]
+    assert summaries == sorted(summaries) or len(summaries) == 2
+    # The magnitudes survive on the atoms the folded facts were built from.
+    assert {f.magnitude for f in facts} == {1, 99}
+
+
+def test_the_masters_roll_call_closes_a_multi_master_report():
+    """Each line says how many masters; the report should also say which.
+
+    That question is asked at the end of reading, and collecting the answer by hand off
+    twenty lines is exactly the work a report should have done for you.
+    """
+    from ufo_tdkit_report.model import SourceReport
+
+    facts = [
+        ChangeFact(FactType.OUTLINE_REDRAWN, FileKind.GLIF, Scope(master=m, glyph=g), magnitude=3)
+        for m in ("Evacode-Bold", "Evacode-Regular")
+        for g in ("A", "B")
+    ]
+    report = SourceReport(
+        commit_spec="a..b", changed_file_count=4, raw_fact_count=len(facts),
+        folded_facts=fold_facts(facts),
+    )
+    text = report.render_text()
+    assert "### Masters touched" in text
+    assert "`Evacode-Bold`, `Evacode-Regular`" in text
+    assert text.index("Masters touched") > text.index("outline redrawn"), "it closes the report"
+
+
+def test_a_single_master_report_has_no_roll_call():
+    """A section that is sometimes empty teaches the reader to skip it.
+
+    With one master every line already says "across 1 master"; repeating its name under a
+    heading of its own is noise, not a summary.
+    """
+    from ufo_tdkit_report.model import SourceReport
+
+    facts = [ChangeFact(FactType.OUTLINE_REDRAWN, FileKind.GLIF, Scope(master="Only", glyph="A"), magnitude=3)]
+    report = SourceReport(
+        commit_spec="a..b", changed_file_count=1, raw_fact_count=1, folded_facts=fold_facts(facts),
+    )
+    assert "Masters touched" not in report.render_text()

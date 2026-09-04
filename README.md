@@ -78,6 +78,15 @@ uv tool install git+https://github.com/typedev/ufo-tdkit-report.git   # from the
 # …or, inside a clone, `uv tool install .` (add --force to replace an existing install)
 ```
 
+Working *on* the tool? Install it editable and skip the reinstall on every change:
+
+```bash
+uv tool install --force --editable .     # inside the clone
+```
+
+The reported version follows `pyproject.toml` rather than the frozen install metadata, so
+reports and commit trailers stay honest between releases.
+
 **As a library**, add it the way you add any dependency — a compatible-release bound is
 the sensible pin, since the deterministic report is byte-stable within a minor version:
 
@@ -148,8 +157,12 @@ need to repeat anything.
 
 Two things are guarded:
 
-- Re-running `tdreport <repo>` to look at the report again **keeps your edits** rather
-  than overwriting them. Use `--regenerate` when you do want a fresh draft.
+- Re-running `tdreport <repo>` **reuses the draft on disk** rather than redrafting: your
+  edits are kept, and an untouched AI draft is not paid for twice. A draft is reused only
+  while it still fits — the facts it describes are unchanged, and you have not asked for
+  something different (`--regenerate` — short `-r` — another `--ai-model`, `--ai-lang`, or
+  a switch between `--no-ai` and narration all force a fresh one). The tool says which draft you
+  are looking at and why.
 - If the working tree changes after you drafted, the message no longer describes what
   would be committed. Committing it is **refused** — on a terminal it asks whether to
   redraft, commit anyway, or abort; in a pipe it errors and names `--stale-ok`. A wrong

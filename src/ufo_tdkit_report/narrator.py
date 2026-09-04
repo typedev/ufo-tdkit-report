@@ -99,6 +99,9 @@ _GROUNDING_RULES = """\
 - Never invent or guess the NAME or MEANING of a codepoint, glyph, or build option.
   If a fact says `uni20C5`, write `uni20C5` — do not name it. If you do not know what
   an option does, describe only that it changed; do not explain its effect.
+- Do not quantify what the facts do not quantify. They say a glyph was redrawn, not how
+  many points moved; they say how many masters, and which. Never supply a count, a
+  percentage or a magnitude of your own — an invented number reads as measurement.
 - Do not editorialize about quality, intent, or impact beyond what the facts state.
   Where the facts are ambiguous, hedge ("appears to", "according to the source diff").
 - Wrap every glyph name, codepoint, feature/class tag, master name and file path in

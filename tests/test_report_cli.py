@@ -758,3 +758,13 @@ def test_forcing_utf8_leaves_an_already_utf8_stream_alone():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_dash_r_is_regenerate():
+    """The flag typed most often while iterating on a draft deserves a short form."""
+    from ufo_tdkit_report.cli import _build_parser
+
+    parser = _build_parser()
+    assert parser.parse_args(["-r"]).regenerate is True
+    assert parser.parse_args(["--regenerate"]).regenerate is True
+    assert parser.parse_args([]).regenerate is False

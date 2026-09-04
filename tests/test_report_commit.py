@@ -270,3 +270,73 @@ def test_is_range_dispatch():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_an_unchanged_repo_is_not_narrated_twice(tmp_path, monkeypatch):
+    """Looking at the report again must not cost another paid call.
+
+    Only an *edited* draft used to be kept; an untouched one was thrown away and
+    redrafted, so `tdreport <repo>` twice in a row on an unchanged tree paid for two
+    narrations of identical facts. The sidecar already stored the facts digest that makes
+    this decidable — the reuse was one condition away the whole time.
+    """
+    import ufo_tdkit_report.commit as commit_module
+    from ufo_tdkit_report import settings
+    from ufo_tdkit_report.commit import inspect as inspect_repo
+
+    repo, glyphs, _ = _repo(tmp_path)
+    (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (11, 10))))
+    settings.store_account_key("sk-x")
+
+    calls = []
+
+    def counting(report, **kwargs):
+        calls.append(kwargs)
+        return "feat: redraw A\n\nOne outline moved.\n"
+
+    monkeypatch.setattr(commit_module, "narrate_commit", counting, raising=False)
+    monkeypatch.setattr("ufo_tdkit_report.narrator.narrate_commit", counting)
+
+    inspect_repo(str(repo), ai=True)
+    inspect_repo(str(repo), ai=True)
+    inspect_repo(str(repo), ai=True)
+    assert len(calls) == 1, "an unchanged tree must not be narrated again"
+
+    # The escape hatches still work, and each is a deliberate act.
+    inspect_repo(str(repo), ai=True, regenerate=True)
+    assert len(calls) == 2, "--regenerate must redraft"
+    inspect_repo(str(repo), ai=True, model="some-other-model")
+    assert len(calls) == 3, "asking for another model is asking for different prose"
+
+    # A change that alters the FACTS invalidates the draft; one that does not, does not.
+    (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (12, 10))))
+    inspect_repo(str(repo), ai=True)
+    assert len(calls) == 3, "same facts, same draft — staleness is measured on facts"
+    (glyphs / "B_.glif").write_text(_glif("B", points=((0, 0), (5, 5))))
+    inspect_repo(str(repo), ai=True)
+    assert len(calls) == 4, "a new glyph changes the facts, so the draft no longer fits"
+
+
+def test_switching_between_narrated_and_plain_redrafts(tmp_path, monkeypatch):
+    """A deterministic draft must not be served to someone who has since asked for prose.
+
+    The reverse matters too: `--no-ai` after a narrated run should hand back the facts,
+    not the prose that happens to be on disk.
+    """
+    from ufo_tdkit_report import settings
+    from ufo_tdkit_report.commit import inspect as inspect_repo
+
+    repo, glyphs, _ = _repo(tmp_path)
+    (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (11, 10))))
+    settings.store_account_key("sk-x")
+    monkeypatch.setattr(
+        "ufo_tdkit_report.narrator.narrate_commit",
+        lambda report, **kw: "feat: redraw A\n\nNarrated.\n",
+    )
+
+    _, plain, _ = inspect_repo(str(repo), ai=False)
+    assert "Narrated." not in plain
+    _, prose, _ = inspect_repo(str(repo), ai=True)
+    assert "Narrated." in prose, "a plain draft must not stand in for a requested narration"
+    _, plain_again, _ = inspect_repo(str(repo), ai=False)
+    assert "Narrated." not in plain_again, "--no-ai must not serve the stored prose"

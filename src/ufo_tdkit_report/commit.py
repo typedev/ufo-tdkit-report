@@ -181,6 +181,29 @@ def draft_state(repo: str, report=None) -> DraftState:
     )
 
 
+def reusable(state: DraftState, *, ai: bool, regenerate: bool, overridden: bool) -> bool:
+    """Whether the draft on disk can stand in for a fresh one. Pure; no I/O.
+
+    Shared by `inspect` and the CLI so the decision and the note explaining it cannot
+    drift apart.
+
+    An *edited* draft is kept because it is the owner's. An *unedited* one is kept
+    because regenerating it would produce the same text: staleness is measured against
+    the facts, so "not stale" means the tree still describes exactly what the draft
+    describes. That second case used to redraft anyway — which for an AI draft meant
+    paying for a narration identical to the one already on disk, every time someone
+    re-ran the command just to look at the report.
+
+    Three things force a fresh draft: `--regenerate`, a per-run AI override (asking for
+    another model or language is asking for different prose), and a change in whether
+    narration is wanted at all — a deterministic draft must not be served to someone who
+    has since asked for prose, or the reverse.
+    """
+    if regenerate or overridden or not state.exists or state.stale:
+        return False
+    return True if state.edited else state.ai == ai
+
+
 def inspect(
     target: str | None = None,
     *,
@@ -204,10 +227,14 @@ def inspect(
     report = extract_working_facts(repo)
     has_changes = bool(report.folded_facts)
 
-    # A draft the owner has edited is theirs, not ours to overwrite — re-running to look
-    # at the report again must not cost them their words (or a paid narration).
+    # Re-running to look at the report again must cost neither the owner's words nor a
+    # paid narration; `reusable` owns that judgement.
     state = draft_state(repo, report)
-    if state.edited and not regenerate:
+    overridden = any(
+        value is not None
+        for value in (model, provider, language, account, strict_grounding, max_tokens)
+    )
+    if reusable(state, ai=ai, regenerate=regenerate, overridden=overridden):
         return repo, state.path.read_text(encoding="utf-8"), has_changes
 
     if ai:

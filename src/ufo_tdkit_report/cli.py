@@ -420,7 +420,7 @@ Examples:
     )
     parser.add_argument("-y", "--yes", action="store_true", help="auto-confirm the 'commit this?' prompt")
     parser.add_argument(
-        "--regenerate", action="store_true",
+        "-r", "--regenerate", action="store_true",
         help="redraft the commit message from the current changes, discarding your edits",
     )
     parser.add_argument(
@@ -983,7 +983,13 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- working-tree commit assistant (repo selector: cwd / name / path) ---
     from ufo_tdkit_report.commit import commit as do_commit
-    from ufo_tdkit_report.commit import draft_state, inspect, legacy_draft_dir, report_path
+    from ufo_tdkit_report.commit import (
+        draft_state,
+        inspect,
+        legacy_draft_dir,
+        report_path,
+        reusable,
+    )
 
     # `tdreport commit` (cwd) or `tdreport <repo> commit`
     if args.target == "commit" and not args.rest:
@@ -1004,6 +1010,10 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         wants_ai = _narration_wanted(args, ai_opts, repo=_repo_path(selector))
+        # Read the draft's state BEFORE inspect writes over it, so the note below can say
+        # which of the two reasons kept it. Reusing silently would be the same invisible
+        # difference the deterministic report exists to remove.
+        before = draft_state(_repo_path(selector)) if _repo_path(selector) else None
         try:
             repo, text, has_changes = inspect(
                 selector, ai=wants_ai, regenerate=args.regenerate, **ai_opts,
@@ -1024,6 +1034,12 @@ def main(argv: list[str] | None = None) -> int:
     if state.edited and not args.regenerate:
         print("note: showing your edited draft, not a fresh one "
               "(`--regenerate` to redraft from the current changes)")
+    elif before is not None and reusable(
+        before, ai=wants_ai, regenerate=args.regenerate,
+        overridden=any(v is not None for v in ai_opts.values()),
+    ):
+        print("note: reusing the existing draft — nothing it describes has changed "
+              "(`--regenerate` to redraft anyway)")
     print(text)
     if not has_changes:
         return 0

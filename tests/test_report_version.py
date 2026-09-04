@@ -59,3 +59,34 @@ def test_changelog_releases_are_ordered_newest_first():
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_an_editable_install_reports_the_source_version_not_the_installed_one():
+    """An editable install's metadata is frozen; the code it runs is not.
+
+    That gap is what made a `tdreport` installed at 0.4.1 stamp "0.4.1" into reports it
+    generated with 0.5.x code — a false claim in every report footer and every commit
+    trailer, in the one field CLAUDE.md calls a guarantee. The project's own dev
+    environment is an editable install, so this test exercises the real path rather than
+    a mock: `__version__` must agree with `pyproject.toml`, whatever the metadata says.
+    """
+    from pathlib import Path
+
+    import tomllib
+
+    import ufo_tdkit_report
+
+    root = Path(__file__).resolve().parent.parent
+    declared = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]["version"]
+    assert ufo_tdkit_report.__version__ == declared
+
+
+def test_the_version_lookup_never_raises(monkeypatch):
+    """It runs at import time, so a surprise here would take the whole package down."""
+    import ufo_tdkit_report
+
+    def explode(*_args, **_kwargs):
+        raise RuntimeError("no metadata here")
+
+    monkeypatch.setattr("ufo_tdkit_report.distribution", explode)
+    assert ufo_tdkit_report._editable_source_version() is None
