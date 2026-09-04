@@ -308,8 +308,19 @@ already being on PyPI, the suite, and a wheel that installs into a throwaway ven
 reports the right version. Don't loosen those to get an upload through; bump the version
 instead. The tag-points-at-HEAD gate is the one that earns its keep: doc commits landing
 after a tag mean the artefact would carry a README (and a PyPI summary) the tag never
-described. Credentials are never in the Makefile — `uv publish` reads `UV_PUBLISH_TOKEN`,
-and Trusted Publishing from CI removes the token entirely.
+described. Credentials are never in the Makefile — `uv publish` prompts for the token
+(hidden) unless `UV_PUBLISH_TOKEN` or `~/.pypirc` supplies one.
+
+Better still, **publishing the GitHub Release now runs `.github/workflows/publish.yml`**,
+which uploads with no stored credential at all: GitHub mints a short-lived OIDC token, and
+PyPI exchanges it for an upload token good for minutes. That also closes the
+forgotten-Release hole above from the other side — the upload is *triggered by* the
+Release, so the two happen together or not at all. The workflow reuses `make check` and
+`make verify` rather than a second set of gates that can drift, and re-checks that
+`pyproject`'s version equals the tag. It needs a trusted publisher registered on PyPI
+(project → Manage → Publishing: owner `typedev`, repo `ufo-tdkit-report`, workflow
+`publish.yml`, environment `pypi`); without it the run fails at the last step, having
+uploaded nothing. `make publish` stays as the manual path.
 
 ## Testing conventions
 

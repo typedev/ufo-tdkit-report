@@ -7,6 +7,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **`.github/workflows/publish.yml`: publishing the GitHub Release uploads to PyPI with no
+  stored credential.** GitHub mints a short-lived OIDC token proving which workflow in
+  which repository is running; PyPI checks it against a registered trusted publisher and
+  exchanges it for an upload token valid for minutes. Nothing long-lived exists to leak —
+  which counts for more here than usual, given this project had an API key reachable
+  through a dataclass repr as recently as 0.5.0. Triggering on the Release also closes the
+  forgotten-Release hole from the other side: the upload and the Release now happen
+  together or not at all. The workflow reuses `make check` and `make verify` rather than a
+  second set of gates that could drift from the manual path, and re-checks that
+  `pyproject`'s version equals the tag. Requires a trusted publisher registered on PyPI;
+  until then it fails at the final step having uploaded nothing, and `make publish`
+  remains the manual path.
+
 ### Changed
 - Documented that **the PyPI history starts at 0.5.2**. Earlier versions are git tags and
   GitHub Releases only, so an exact pin below that resolves to nothing from the index —
