@@ -203,8 +203,7 @@ its overrides; `tdreport settings` shows and edits all of it.
 
 ## AI narration
 
-Narration is **on by default**. It needs an API key, which the tool reads from a **single
-place**: its own config directory.
+Narration is **on by default**, and needs an API key ([where it lives](#where-the-key-lives)).
 
 Three things turn it off, and they are not the same thing:
 
@@ -221,11 +220,17 @@ a redirect expects, and the explanation goes to **stderr**. When you would rathe
 than receive the quieter output — CI that publishes the prose, say — `--ai` says so:
 
 ```bash
-tdreport --notes v2.005..HEAD --ai > notes.md   # no prose, no file, non-zero exit
+tdreport --notes v2.005..HEAD --ai > notes.md   # non-zero exit; notes.md left empty
+                                                # rather than holding a report you did not ask for
 ```
 
 `--ai-note`, the pre-0.5 way of asking for narration, is still accepted and does nothing,
-so existing scripts and hooks keep working.
+so existing scripts and hooks keep working. Asking for both at once (`--ai --json`, or
+`--ai --no-ai`) is an argument error rather than a silent choice between them.
+
+### Where the key lives
+
+The key comes from one place, the tool's own config directory:
 
 | OS      | path                                                     |
 | ------- | -------------------------------------------------------- |
@@ -308,8 +313,10 @@ runtime dependency for this.
 **Reasoning models** (DeepSeek's reasoners, and the reasoning modes of others) spend the
 completion budget on their private reasoning *before* writing anything, so they need a
 much larger cap than the prose alone would suggest — the default is 8192 and
-`--ai-max-tokens` raises it per run. If one still stops before answering, the error says
-so with the token counts rather than reporting an empty narrative.
+`--ai-max-tokens` raises it per run. If one still stops before answering, the note names
+the token counts rather than reporting an empty narrative — and, like any narration
+failure, you get the deterministic report rather than nothing. Use `--ai` to make it an
+error instead.
 
 Local models are worth a caveat: the narrator's grounding depends on the model following
 instructions, and a small local model invents more than a large hosted one. The
@@ -504,7 +511,9 @@ model declares what it means by marking it up, and the check verifies the declar
 rather than guessing. If a model ignores that instruction, the result says glyph-name
 checking was skipped — a skipped check must not look like a clean pass.
 
-By default a finding is a note; a strict account or repo refuses the narration instead:
+By default a finding is a note; a strict account or repo refuses the narration instead —
+you get the deterministic report and a note saying the narration was refused, or a
+non-zero exit if you also passed `--ai`:
 
 ```bash
 tdreport set-grounding strict                  # this account
@@ -546,8 +555,8 @@ print(describe_changes(".", "v1..v2", notes=True))        # release notes
 print(describe_changes(".", "HEAD~1..HEAD", ai=False))    # never calls out
 ```
 
-`describe_changes` is the **only** public call that touches the network. The extractors
-stay pure and offline, on purpose: they get embedded in build pipelines, and a fact
+`describe_changes` is the only call here that turns a repository into a report by way of
+a model; the extractors stay pure and offline, on purpose: they get embedded in build pipelines, and a fact
 extractor spending money on its own initiative is not a reasonable default at that layer.
 Compose them deliberately when you want the failure rather than the fallback:
 
@@ -561,6 +570,10 @@ print(narrate(report))                           # raises NarratorError instead 
 print(resolve_ai_settings(repo=".").model)       # what a run here would use
 ```
 
+Two other public calls reach a provider by their nature and are not part of extraction:
+`narrate` / `narrate_commit`, and `list_models`, which queries `/models` to fill a picker
+and degrades to a built-in hint list with no key or no network.
+
 Everything unset resolves through the same chain the CLI uses, so an embedding tool
 honours the owner's accounts and per-repo bindings without re-implementing the lookup.
 A report remembers the repository it came from, and any path *inside* a registered repo
@@ -570,8 +583,8 @@ settings came from the default account — a `UnboundRepoWarning` says so rather
 letting it pass unnoticed.
 
 Three warning categories a public call can raise are exported from the package root
-alongside the calls themselves, so catching them never means importing from an internal
-module: `UnboundRepoWarning` (an unregistered repo fell back to the default account),
+alongside the calls themselves, so production code never has to name an internal module
+to catch one: `UnboundRepoWarning` (an unregistered repo fell back to the default account),
 `GroundingWarning` (the narration used identifiers the facts do not support) and
 `InsecureKeyFileWarning` (the key file is readable by others). They are *defined* in
 `settings`, `narrator` and `config` respectively — beside the checks that raise them —
@@ -608,8 +621,9 @@ categories = tuple(
 )
 ```
 
-`ufo_tdkit_report.settings.UnboundRepoWarning` and `ufo_tdkit_report.narrator.
-GroundingWarning` remain valid names for the same classes.
+`ufo_tdkit_report.settings.UnboundRepoWarning`, `ufo_tdkit_report.narrator.GroundingWarning`
+and `ufo_tdkit_report.config.InsecureKeyFileWarning` remain valid names for the same
+classes — the root export is an alias, never a second definition.
 
 Build-profile *consequence* semantics (e.g. "ttfautohint off → no TT hinting") are
 build-tool-specific: a consumer that owns an option schema injects it via

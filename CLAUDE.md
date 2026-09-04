@@ -47,8 +47,11 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   public API re-exported from `__init__.py`, and they are **pure and offline** — callers
   embed them in build pipelines, where a fact extractor spending money on its own
   initiative is not a reasonable default. `describe_changes` is the composition (extract,
-  then narrate, falling back to the render) and the **only** public call that may touch
-  the network; `tests/test_report_public_api.py` pins that boundary. Nothing below
+  then narrate, falling back to the render) — the only call that turns a repo into a
+  report by way of a model. It is *not* the only public call that reaches a provider:
+  `narrate`/`narrate_commit` and `list_models` do so by their nature. The boundary that
+  matters, and that `tests/test_report_public_api.py` pins, is that **extraction** never
+  narrates. Nothing below
   `service` prints; rendering is separate. **What a public call can *raise* belongs in `__init__.__all__` too**, not just
   what it can call — `NarratorError`, `GroundingWarning`, `UnboundRepoWarning`. An
   exception reachable only via `narrator`/`settings` pins the consumer to the internal
@@ -213,7 +216,7 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   message (`<config>/drafts/<repo>/`) — keeping it in `<repo>/.tdreport/` meant appending
   to the repository's own `.gitignore`, a silent edit to a tracked file to hide a problem
   the tool had created. Don't reintroduce a write into someone's repo, and don't move the
-  draft to `/tmp` either: an `--ai-note` draft cost a paid call and `/tmp` is cleared on
+  draft to `/tmp` either: an AI-narrated draft cost a paid call and `/tmp` is cleared on
   reboot. A draft carries a sidecar (`draft.json`) with two digests: of the text *we*
   produced, so an owner's edits are never overwritten, and of the *facts* it describes,
   so committing a draft the working tree has outgrown is refused rather than writing a

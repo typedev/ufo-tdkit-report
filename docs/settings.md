@@ -75,7 +75,7 @@ to fall back to the deterministic report when it cannot be produced.
 ### Once, without saving anything
 
 ```bash
-tdreport MyFont --ai-note --ai-model claude-haiku-4-5 --ai-lang German
+tdreport MyFont --ai-model claude-haiku-4-5 --ai-lang German
 ```
 
 ## The accounts screen

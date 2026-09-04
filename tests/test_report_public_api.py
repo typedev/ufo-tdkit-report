@@ -59,8 +59,13 @@ if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 
 
-def test_describe_changes_is_the_only_public_call_that_may_touch_the_network(tmp_path):
+def test_extraction_never_narrates_however_the_cli_default_changes(tmp_path):
     """The composition is opt-in; the extractors stay pure.
+
+    Not "the only public call that touches the network" — `narrate` and `list_models`
+    reach a provider by their nature, and claiming otherwise was wrong in the docs for a
+    while. The boundary worth pinning is narrower and real: turning a repository into
+    facts must never involve a model.
 
     `extract_facts` and friends are embedded in build pipelines, where a paid model call
     is not a reasonable thing for a fact extractor to make on its own initiative. Making
