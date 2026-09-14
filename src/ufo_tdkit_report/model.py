@@ -68,9 +68,13 @@ class FactType(Enum):
     FEA_FEATURE_REMOVED = "fea-feature-removed"
     # designspace
     AXIS_CHANGED = "axis-changed"
+    AXIS_MAP_CHANGED = "axis-map-changed"  # user value -> design location pairs
+    AXIS_LABELS_CHANGED = "axis-labels-changed"
     MASTER_ADDED = "master-added"
     MASTER_REMOVED = "master-removed"
+    MASTER_MOVED = "master-moved"
     INSTANCE_CHANGED = "instance-changed"
+    INSTANCE_MOVED = "instance-moved"
     DS_RULE_CHANGED = "ds-rule-changed"
     # build profile
     PROFILE_OPTION_ADDED = "profile-option-added"
@@ -186,12 +190,19 @@ class FeaSnapshot:
 
 @dataclass(frozen=True)
 class DesignspaceSnapshot:
-    """Coarse designspace view: axes, sources, instances, rules."""
+    """Designspace view: axes with maps and labels, masters and instances with locations, rules.
+
+    ``axes`` is ``(name, "tag extent")``; ``rules`` is ``(name, conditions, subs)``.
+    """
 
     axes: tuple[tuple[str, ...], ...]
     sources: tuple[str, ...]
     instances: tuple[str, ...]
-    rules: tuple[str, ...]
+    rules: tuple
+    axis_maps: tuple = ()  # (axis, ((user, design), ...))
+    axis_labels: tuple = ()  # (axis, ((user value, name, flags), ...))
+    source_locations: tuple = ()  # (master, ((dimension, value), ...))
+    instance_locations: tuple = ()  # (instance, ((dimension, value), ...))
 
 
 @dataclass(frozen=True)
@@ -215,6 +226,7 @@ class Scope:
     glyph: str | None = None
     feature_tag: str | None = None
     lookup: str | None = None  # a standalone `lookup NAME { }` block in a .fea file
+    path: str | None = None  # repo-relative source file, where a fact means nothing without it
 
 
 @dataclass(frozen=True)

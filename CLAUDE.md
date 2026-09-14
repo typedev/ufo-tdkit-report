@@ -79,7 +79,8 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   constatation for any changed tracked file that produced no semantic fact (see T3 below).
 - **Per-kind parse/diff modules**: `glif.py` (coordinate-level outline/component/anchor
   diff), `plists.py` (kerning/groups/fontinfo), `features.py` (OpenType `.fea` via
-  `feaLib`, rule level), `designspace.py` (axes/masters/instances), `profile.py`
+  `feaLib`, rule level), `designspace.py` (`designspaceLib`: axis extents, map points and
+  labels, master/instance locations, rules with conditions), `profile.py`
   (build-profile YAML, option level). Each parses to a **normalized, serialization-order-
   agnostic snapshot** (`model.py`) so editor re-serialization noise diffs to nothing.
   "Order-agnostic" stops where order is meaning: **class members in `.fea` keep source
@@ -89,7 +90,13 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   edited class yields `FEA_MAPPING_CHANGED` — the exact glyph-to-glyph effect, computed.
   Standalone `lookup NAME { }` blocks diff per rule under `Scope.lookup`, with the features
   that reference them; they used to land in `top_level` as one opaque block, so a one-line
-  edit read as the whole lookup removed and re-added under `feature ?`.- **`rollup.py`** (`fold_facts`) is the compression core: it groups identical atoms across
+  edit read as the whole lookup removed and re-added under `feature ?`.
+  Designspace facts carry `Scope.path` (a repo often has one designspace per family, and
+  "axis `weight` remapped" is unplaceable without it) and identify masters by UFO file
+  stem, never by `source.N` — generators renumber those when a source is inserted, which
+  would read as every master removed and re-added. Instance and master moves fold to one
+  line per file: an axis remap moves every named style, and a line each buries the edit.
+- **`rollup.py`** (`fold_facts`) is the compression core: it groups identical atoms across
   masters into one folded fact, groups component shifts by `(base, delta)` to surface
   batch ops, and above `--threshold` distinct glyphs emits statistics instead of
   enumerating. All ordering is total and value-based so output is **byte-stable** across
@@ -219,7 +226,7 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   "Restate" does not mean "list": a narration that only rephrased `ignore sub …` as
   "add an ignore rule" was faithful and useless. OpenType feature code is the explicit
   exception to "never explain meaning" — the effect is written in the rule, registered
-  feature tags and UFO fontinfo keys have published meanings — so the prompts ask for the
+  feature tags, UFO fontinfo keys and designspace elements have published meanings — so the prompts ask for the
   effect. What stays forbidden: intent (*why*), stylistic-set names, class members the
   facts do not list, and build-profile option meanings. When the model needs more to
   explain an effect, add it to the **facts** (as `lookup_users` and `FEA_MAPPING_CHANGED`

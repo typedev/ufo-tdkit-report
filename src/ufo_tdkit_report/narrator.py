@@ -112,6 +112,13 @@ _GROUNDING_RULES = """\
   designer's. UFO fontinfo keys also have a published meaning (vertical metrics, style
   linking, naming) you may state. Describe the effect only in terms of glyphs and classes
   the facts name — never list members of a class the facts do not list.
+- A designspace is a published format too, so explain it the same way: an axis map pairs
+  a user-facing axis value with a design location, so remapping it moves where that
+  named style is interpolated; an instance location is where a static style is taken
+  from the masters, a master (source) location where a drawn master sits; a rule swaps
+  glyphs while its conditions hold. Say which styles or masters moved and whether to a
+  higher or lower design value — never claim a visual result ("heavier", "darker") the
+  numbers alone do not establish.
 - Say what changed and what it does, never WHY: the designer's intent is not in the facts.
 - Files named as omitted (lock or generated files) are not source changes: do not mention them.
 - Do not quantify what the facts do not quantify. They say a glyph was redrawn, not how

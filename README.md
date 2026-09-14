@@ -36,7 +36,8 @@ particular font compiler.
 - **Semantic source diff** — the ground truth under the prose: outlines (coordinate-based,
   not text), kerning/groups, fontinfo, OpenType features (`feaLib` rule level, per feature
   and per standalone lookup — and when a class edit re-pairs a `sub @A by @B`, exactly which
-  glyph now becomes which), designspace (axes/masters/instances), and build-profile YAML
+  glyph now becomes which), designspace (axis extents, map points and labels, where
+  masters and instances sit, rules with their conditions), and build-profile YAML
   (option level). `--no-ai` gives you exactly this and nothing else.
 - **No silent omissions** — every changed tracked file surfaces as a fact (semantic when
   available, else a bare added/removed/modified note). `.gitignore` is honoured.
@@ -576,7 +577,10 @@ Restating is not the same as parroting, though. OpenType feature code carries it
 in the rule itself, so for feature changes the narrator explains what the text now does —
 "`f_i` no longer forms when `i` is followed by a digit" rather than the `ignore sub` line
 it was written as — and it may use the published meaning
-of registered feature tags and UFO fontinfo keys. It still never says *why* a change was
+of registered feature tags and UFO fontinfo keys. A designspace is explained the same way:
+a remapped axis point moves where that named style is interpolated, and the narrator says
+which styles moved and in which direction on the design scale — but not that a style got
+"heavier", which the numbers alone do not establish. It still never says *why* a change was
 made, never names a stylistic set, and never explains a build-profile option.
 
 To keep a file out of reports altogether, mark it in the font repository's own

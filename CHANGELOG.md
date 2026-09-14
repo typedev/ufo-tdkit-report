@@ -28,6 +28,17 @@ All notable changes to this project are documented here. The format follows
   opaque block, so adding a line reported the whole lookup removed and re-added under
   `feature ?` — commented-out lines included. It now reports the changed rule and the
   features that use the lookup: ``lookup `DIGIT_PUNCT` (used in `calt`, `tnum`): rule added``.
+- **Designspace changes say what moved.** The differ compared only axis extents and
+  instance *names*, so remapping an axis — every named style moved to a new design
+  location — surfaced as a bare "modified". It now reads the file with `designspaceLib`
+  and reports axis map points (`user 200 → design 175 (was 160)`), axis labels added and
+  removed, instance and master locations that moved (one line per file, not one per
+  style), and rules with their substitutions and conditions. Every line names the
+  designspace it came from, since a repo often holds one per family. Masters are now
+  identified by their UFO file stem rather than the `source.N` names a generator writes,
+  which shift whenever a source is inserted. Both prompts explain what an axis map, an
+  instance location and a rule do — without claiming a visual result the numbers alone do
+  not establish.
 - A feature class change names its added and removed members (as written, nested
   `@CLASS` references unexpanded) instead of only saying the class changed.
 - `to_dict()` gained `omitted_files`, and the draft fingerprint is computed from it — so a

@@ -60,6 +60,10 @@ def classify_change(cf: ChangedFile, family: str | None = None) -> list[ChangeFa
     if kind is None:
         return []
     scope = Scope(family=family, master=master_of(cf.path))
+    if kind is FileKind.DESIGNSPACE:
+        # A repo often holds one designspace per family; "axis `weight` remapped" is
+        # unplaceable without saying which.
+        scope = Scope(family=family, path=cf.path)
 
     if kind is FileKind.GLIF:
         return _glyph_facts(cf, scope)

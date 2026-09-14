@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from ufo_tdkit_report.model import ChangeFact, FactType, FoldedFact
+from ufo_tdkit_report.model import ChangeFact, FactType, FileKind, FoldedFact
 
 DEFAULT_THRESHOLD = 12
 
@@ -40,6 +40,10 @@ _GLYPH_VALUE_TYPES = {
 # (a distribution across masters), mirroring component moves.
 _ANCHOR_TYPES = {FactType.ANCHOR_ADDED, FactType.ANCHOR_REMOVED, FactType.ANCHOR_MOVED}
 
+# Designspace location changes fold per file: an axis remap moves every named instance,
+# and seven lines saying so separately bury the one edit that caused them.
+_DS_MOVE_TYPES = {FactType.INSTANCE_MOVED, FactType.MASTER_MOVED}
+
 
 def _key_detail(fact: ChangeFact) -> tuple:
     """The stable identity carried in the fold key (per-master variation excluded)."""
@@ -53,6 +57,10 @@ def _key_detail(fact: ChangeFact) -> tuple:
         # The change itself is the identity: the same class edited differently in two
         # .fea files is two lines, not one line showing whichever came first.
         return fact.detail
+    if fact.fact_type in _DS_MOVE_TYPES:
+        return (fact.scope.path,)  # every move in one file reads as one line
+    if fact.file_kind is FileKind.DESIGNSPACE:
+        return (fact.scope.path, *fact.detail)
     # kern pair, group name, fontinfo key, fea rule/class/feature, profile option key
     return (fact.detail[0],) if fact.detail else ()
 
@@ -126,6 +134,81 @@ def _mapping(glyph: str, old: str | None, new: str | None) -> str:
     if new is None:
         return f"`{glyph}` no longer substituted (was `{old}`)"
     return f"`{glyph}` → `{new}` (was `{old}`)"
+
+
+def _rule_text(rule) -> str:
+    conditions, subs = rule
+    swaps = ", ".join(f"`{a}` → `{b}`" for a, b in subs) or "no substitutions"
+    return f"{swaps} when {conditions}"
+
+
+def _moves(changes) -> str:
+    return ", ".join(f"{dim} {old} → {new}" for dim, old, new in changes)
+
+
+def _summarize_designspace(fact_type: FactType, sample: ChangeFact, group: list[ChangeFact]) -> str:
+    where = f"`{sample.scope.path}`: " if sample.scope.path else "designspace: "
+    detail = sample.detail
+
+    if fact_type is FactType.AXIS_CHANGED:
+        name, before, after = detail
+        if before is None:
+            return f"{where}axis `{name}` added ({after})"
+        if after is None:
+            return f"{where}axis `{name}` removed (was {before})"
+        return f"{where}axis `{name}` changed {before} → {after}"
+
+    if fact_type is FactType.AXIS_MAP_CHANGED:
+        name, changes = detail
+        parts = []
+        for user, old, new in changes:
+            if new is None:
+                parts.append(f"user {user:g} no longer mapped (was {old:g})")
+            elif old is None:
+                parts.append(f"user {user:g} → design {new:g} (new)")
+            else:
+                parts.append(f"user {user:g} → design {new:g} (was {old:g})")
+        cap = 8
+        more = f" +{len(parts) - cap} more" if len(parts) > cap else ""
+        return f"{where}axis `{name}` map: {'; '.join(parts[:cap])}{more}"
+
+    if fact_type is FactType.AXIS_LABELS_CHANGED:
+        name, added, removed = detail
+
+        def labels(items) -> str:
+            return ", ".join(f"`{label}` ({value:g}{', ' + flags if flags else ''})" for value, label, flags in items)
+
+        parts = [f"added {labels(added)}"] if added else []
+        parts += [f"removed {labels(removed)}"] if removed else []
+        return f"{where}axis `{name}` labels: {'; '.join(parts)}"
+
+    if fact_type in (FactType.MASTER_ADDED, FactType.MASTER_REMOVED):
+        verb = "added" if fact_type is FactType.MASTER_ADDED else "removed"
+        return f"{where}master `{detail[0]}` {verb}"
+
+    if fact_type in _DS_MOVE_TYPES:
+        noun = "instances" if fact_type is FactType.INSTANCE_MOVED else "masters"
+        moved = sorted({f.detail for f in group})
+        cap = 8
+        shown = "; ".join(f"`{name}` {_moves(changes)}" for name, changes in moved[:cap])
+        more = f" +{len(moved) - cap} more" if len(moved) > cap else ""
+        return f"{where}{noun} moved: {shown}{more}"
+
+    if fact_type is FactType.INSTANCE_CHANGED:
+        added, removed = detail
+        parts = [f"added {_ticked(added)}"] if added else []
+        parts += [f"removed {_ticked(removed)}"] if removed else []
+        return f"{where}instances {'; '.join(parts)}"
+
+    if fact_type is FactType.DS_RULE_CHANGED:
+        name, before, after = detail
+        if before is None:
+            return f"{where}rule `{name}` added: {_rule_text(after)}"
+        if after is None:
+            return f"{where}rule `{name}` removed (was {_rule_text(before)})"
+        return f"{where}rule `{name}`: {_rule_text(after)} (was {_rule_text(before)})"
+
+    return f"{where}{fact_type.value}"
 
 
 def _summarize(key: tuple, group: list[ChangeFact], schema=None) -> str:
@@ -295,15 +378,8 @@ def _summarize(key: tuple, group: list[ChangeFact], schema=None) -> str:
         more = f" +{len(pairs) - cap} more" if len(pairs) > cap else ""
         return f"{shown}{more}"
 
-    if fact_type is FactType.AXIS_CHANGED:
-        return "designspace axes changed"
-    if fact_type in (FactType.MASTER_ADDED, FactType.MASTER_REMOVED):
-        verb = "added" if fact_type is FactType.MASTER_ADDED else "removed"
-        return f"designspace master `{sample.detail[0]}` {verb}"
-    if fact_type is FactType.INSTANCE_CHANGED:
-        return "designspace instances changed"
-    if fact_type is FactType.DS_RULE_CHANGED:
-        return "designspace rules changed"
+    if sample.file_kind is FileKind.DESIGNSPACE:
+        return _summarize_designspace(fact_type, sample, group)
 
     return f"{fact_type.value} on `{sample.scope.glyph}`{master_suffix}"
 
