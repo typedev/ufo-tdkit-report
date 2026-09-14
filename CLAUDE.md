@@ -139,6 +139,14 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   precedence chain (see below). **`config.py`** holds the config-dir/`.env` primitives
   both `settings` and `registry` need (split out to avoid an import cycle; still
   re-exported from `narrator`).
+- The **wait indicator** (`cli._Waiting`, `cli._progress_transport`) is CLI-only: stderr,
+  TTY only, shown after half a second, erased on exit, labelled from the request payload
+  (model) and URL (host). It wraps the narrator's `transport` seam rather than the
+  `narrate` call, because grounding notes are emitted after the reply arrives and a spinner
+  still running then tangles into them; `commit.inspect`/`commit.commit` pass `transport`
+  through for that reason, and the library itself still prints nothing. It is a clock,
+  never a percentage: no provider reports progress, and a reasoning model is silent until
+  it is done.
 - **`cli.py`** dispatches: a `target` containing `..` (or `--notes`) → committed-history
   modes; a command word (`settings`, `accounts`, `account`, `repo`, `bind`, `add`, `ls`,
   `rm`, `prune`, `set-*`) → that command; otherwise the working-tree commit assistant

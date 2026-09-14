@@ -253,6 +253,12 @@ tdreport --notes v2.005..HEAD --ai > notes.md   # non-zero exit; notes.md left e
                                                 # rather than holding a report you did not ask for
 ```
 
+While the model works, a terminal shows which model is being waited on and for how long —
+`⠋ waiting for claude-opus-5 at api.anthropic.com (12s)` — on stderr, erased when the reply
+arrives. A reasoning model can think for tens of seconds before sending a word, so this is
+a clock rather than a progress bar. Nothing is written when stderr is not a terminal, so
+pipes and CI see exactly what they did before.
+
 `--ai-note`, the pre-0.5 way of asking for narration, is still accepted and does nothing,
 so existing scripts and hooks keep working. Asking for both at once (`--ai --json`, or
 `--ai --no-ai`) is an argument error rather than a silent choice between them.

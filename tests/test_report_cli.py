@@ -12,6 +12,92 @@ from ufo_tdkit_report.narrator import DEFAULT_MODEL, resolve_model
 MODELS = [("claude-opus-5", "Claude Opus 5"), ("claude-haiku-4-5", "Claude Haiku 4.5")]
 
 
+class _Tty:
+    """A stream that claims to be a terminal and records every write."""
+
+    encoding = "utf-8"
+
+    def __init__(self):
+        self.chunks = []
+
+    def isatty(self):
+        return True
+
+    def write(self, text):
+        self.chunks.append(text)
+
+    def flush(self):
+        pass
+
+    @property
+    def text(self):
+        return "".join(self.chunks)
+
+
+def _until_shown(stream, token):
+    import time
+
+    deadline = time.monotonic() + 5
+    while token not in stream.text and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+
+def test_no_wait_indicator_off_a_terminal(monkeypatch):
+    """A pipe, a redirect or CI gets the plain transport and not a byte of animation."""
+    import io
+
+    from ufo_tdkit_report.cli import _progress_transport
+
+    assert _progress_transport(io.StringIO()) is None
+    monkeypatch.setenv("TERM", "dumb")
+    assert _progress_transport(_Tty()) is None
+
+
+def test_wait_indicator_names_the_request_and_erases_itself():
+    import json
+
+    from ufo_tdkit_report.cli import _progress_transport
+
+    stream = _Tty()
+
+    def slow_post(url, headers, body, timeout):
+        _until_shown(stream, "claude-x")
+        return {"ok": True}
+
+    transport = _progress_transport(stream, delay=0, post=slow_post)
+    body = json.dumps({"model": "claude-x"}).encode()
+    assert transport("https://api.example.com/v1/messages", {}, body, 60) == {"ok": True}
+    assert "waiting for claude-x at api.example.com (0s)" in stream.text
+    last = stream.chunks[-1]
+    assert last.startswith("\r") and last.endswith("\r") and not last.strip()
+
+
+def test_wait_indicator_is_erased_when_the_call_fails():
+    from ufo_tdkit_report.cli import _progress_transport
+    from ufo_tdkit_report.narrator import NarratorError
+
+    stream = _Tty()
+
+    def failing(url, headers, body, timeout):
+        _until_shown(stream, "waiting for")
+        raise NarratorError("network error: boom")
+
+    transport = _progress_transport(stream, delay=0, post=failing)
+    with pytest.raises(NarratorError):
+        transport("http://localhost:11434/v1/chat/completions", {}, b"{}", 60)
+    assert "waiting for the model at localhost:11434" in stream.text
+    assert not stream.chunks[-1].strip()
+
+
+def test_a_fast_reply_shows_nothing():
+    from ufo_tdkit_report.cli import _progress_transport
+
+    stream = _Tty()
+    transport = _progress_transport(stream, delay=5, post=lambda *args: {"ok": True})
+    assert transport("https://api.example.com/v1/messages", {}, b"{}", 60) == {"ok": True}
+    assert stream.chunks == []
+
+
 def _git_init(repo):
     """Init a repo AND give it an identity — a CI runner has no global git config."""
     import subprocess

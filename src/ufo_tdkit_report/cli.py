@@ -242,7 +242,9 @@ def _do_commit(selector, args, ai_opts, do_commit) -> int:
         answer = (_prompt_line("  [r]edraft, [c]ommit anyway, [a]bort? ") or "a").lower()
         if answer.startswith("r"):
             try:
-                _, text, _ = inspect(selector, ai=use_ai, regenerate=True, **ai_opts)
+                _, text, _ = inspect(
+                    selector, ai=use_ai, regenerate=True, transport=_progress_transport(), **ai_opts
+                )
             except (NarratorError, RuntimeError) as exc:
                 print(f"error: {exc}")
                 return 1
@@ -257,7 +259,9 @@ def _do_commit(selector, args, ai_opts, do_commit) -> int:
             return 0
 
     try:
-        rc, msg = do_commit(selector, ai=use_ai, allow_stale=stale_ok, **ai_opts)
+        rc, msg = do_commit(
+            selector, ai=use_ai, allow_stale=stale_ok, transport=_progress_transport(), **ai_opts
+        )
     except (NarratorError, RuntimeError) as exc:
         print(f"error: {exc}")
         return 1
@@ -483,6 +487,96 @@ def _present_warnings_as_notes() -> None:
     warnings.formatwarning = _format
     for category in ours:
         warnings.simplefilter("always", category)
+
+
+class _Waiting:
+    """A spinner with elapsed seconds on stderr while one model call is in flight.
+
+    Not a progress bar: nothing says how long a model will take, and a reasoning model
+    sends nothing at all while it thinks, so even a streamed bar would sit still for most
+    of the wait. What a long wait needs is proof of life and a clock — forty seconds of
+    silence should read as a slow model, not a hung tool.
+
+    It appears only after ``delay`` (a fast model shows nothing), and erases its own line
+    on the way out. The caller decides it belongs on a terminal; stdout, the byte-stable
+    report, never sees it.
+    """
+
+    def __init__(self, label: str, stream, *, delay: float = 0.5, interval: float = 0.1):
+        import threading
+
+        self.label, self.stream, self.delay, self.interval = label, stream, delay, interval
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._width = 0
+
+    def _frames(self) -> str:
+        encoding = (getattr(self.stream, "encoding", "") or "").lower().replace("-", "")
+        return "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏" if encoding == "utf8" else "|/-\\"
+
+    def _run(self) -> None:
+        import time
+
+        started = time.monotonic()
+        if self._stop.wait(self.delay):
+            return
+        frames = self._frames()
+        tick = 0
+        while True:
+            line = f"{frames[tick % len(frames)]} {self.label} ({int(time.monotonic() - started)}s)"
+            self.stream.write("\r" + line.ljust(self._width))
+            self.stream.flush()
+            self._width = max(self._width, len(line))
+            if self._stop.wait(self.interval):
+                return
+            tick += 1
+
+    def __enter__(self):
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc_info):
+        self._stop.set()
+        self._thread.join()
+        if self._width:  # overwrite rather than `\033[K`, which a legacy Windows console prints
+            self.stream.write("\r" + " " * self._width + "\r")
+            self.stream.flush()
+        return False
+
+
+def _progress_transport(stream=None, *, delay: float = 0.5, post=None):
+    """A narrator transport that shows :class:`_Waiting` around the request — or None.
+
+    None off a terminal: a pipe, a redirect, CI or a test gets the plain transport and not
+    a byte of animation. Wrapping the transport, the narrator's existing injection seam,
+    times exactly the network wait, so the grounding notes printed once the reply is in
+    arrive after the line is gone rather than tangled into it. The label is read off the
+    request — the model in the payload, the host in the URL — so it names what was
+    actually sent, without resolving the settings a second time.
+    """
+    stream = stream if stream is not None else sys.stderr
+    try:
+        if not stream.isatty() or os.environ.get("TERM") == "dumb":
+            return None
+    except (AttributeError, ValueError):
+        return None
+
+    def transport(url, headers, body, timeout):
+        import json
+        from urllib.parse import urlsplit
+
+        from ufo_tdkit_report import narrator
+
+        try:
+            model = json.loads(body).get("model") or "the model"
+        except (ValueError, TypeError, AttributeError):
+            model = "the model"
+        host = urlsplit(url).netloc
+        label = f"waiting for {model}" + (f" at {host}" if host else "")
+        with _Waiting(label, stream, delay=delay):
+            return (post or narrator._http_post)(url, headers, body, timeout)
+
+    return transport
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -966,8 +1060,9 @@ def main(argv: list[str] | None = None) -> int:
         if narrating:
             from ufo_tdkit_report import narrate
 
+            transport = _progress_transport()
             try:
-                print(narrate(report, repo=args.repo, **ai_opts))
+                print(narrate(report, repo=args.repo, **ai_opts, **({"transport": transport} if transport else {})))
                 return 0
             except NarratorError as exc:
                 # The call was attempted and failed — a bad key, an outage, a refusal. The
@@ -1016,7 +1111,8 @@ def main(argv: list[str] | None = None) -> int:
         before = draft_state(_repo_path(selector)) if _repo_path(selector) else None
         try:
             repo, text, has_changes = inspect(
-                selector, ai=wants_ai, regenerate=args.regenerate, **ai_opts,
+                selector, ai=wants_ai, regenerate=args.regenerate,
+                transport=_progress_transport(), **ai_opts,
             )
         except NarratorError as exc:
             if args.require_ai or not wants_ai:

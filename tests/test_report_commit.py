@@ -317,6 +317,26 @@ def test_an_unchanged_repo_is_not_narrated_twice(tmp_path, monkeypatch):
     assert len(calls) == 4, "a new glyph changes the facts, so the draft no longer fits"
 
 
+def test_commit_hands_the_transport_down_to_the_narrator(tmp_path, monkeypatch):
+    """The CLI times the model wait by wrapping the transport; commit → inspect must pass it on."""
+    from ufo_tdkit_report import settings
+
+    repo, glyphs, _ = _repo(tmp_path)
+    (glyphs / "A_.glif").write_text(_glif("A", points=((0, 0), (11, 10))))
+    settings.store_account_key("sk-x")
+    seen = []
+
+    def narrate(report, **kwargs):
+        seen.append(kwargs.get("transport"))
+        return "feat: redraw A\n"
+
+    monkeypatch.setattr("ufo_tdkit_report.narrator.narrate_commit", narrate)
+    marker = object()
+    rc, _ = commit(str(repo), ai=True, transport=marker)
+    assert rc == 0
+    assert seen == [marker]
+
+
 def test_switching_between_narrated_and_plain_redrafts(tmp_path, monkeypatch):
     """A deterministic draft must not be served to someone who has since asked for prose.
 

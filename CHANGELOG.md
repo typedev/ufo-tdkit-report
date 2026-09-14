@@ -7,7 +7,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **A wait indicator while the model works.** A narration can take tens of seconds — a
+  reasoning model sends nothing until it is done — and a silent terminal reads as a hung
+  tool. On a terminal, stderr now shows which model is being waited on and for how long,
+  `⠋ waiting for claude-opus-5 at api.anthropic.com (12s)`, from half a second in, and
+  erases the line when the reply arrives. It is a clock, not a progress bar: no provider
+  says how long a completion will take. Nothing is written when stderr is not a terminal
+  (a pipe, CI, `TERM=dumb`), and stdout — the report — is untouched. The library still
+  prints nothing: `commit.inspect` and `commit.commit` gained a `transport` argument that is
+  handed to the narrator, the seam the CLI wraps to time the call.
 
 ## [0.6.0] - 2026-09-13
 

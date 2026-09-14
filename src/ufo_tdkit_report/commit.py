@@ -215,13 +215,15 @@ def inspect(
     strict_grounding: bool | None = None,
     max_tokens: int | None = None,
     regenerate: bool = False,
+    transport=None,
 ) -> tuple[str, str, bool]:
     """Inspect uncommitted changes; write the drafted message to the report file.
 
     Returns ``(repo, message_text, has_changes)``. Does not print — the CLI does.
     Unset AI arguments resolve through :func:`settings.resolve_ai_settings`, and the
     repo path is handed down so this repository's own account/model/language binding
-    applies; they are only consulted when ``ai`` is set.
+    applies; they are only consulted when ``ai`` is set. ``transport``, when given, is
+    handed to the narrator unchanged — it is how the CLI times the wait for a model.
     """
     repo = resolve_repo(target)
     report = extract_working_facts(repo)
@@ -242,6 +244,8 @@ def inspect(
 
         # Everything unset resolves inside narrate_commit, against THIS repo's binding.
         extra = {"max_tokens": max_tokens} if max_tokens else {}
+        if transport is not None:
+            extra["transport"] = transport
         text = narrate_commit(
             report, repo=repo, model=model, provider=provider, language=language,
             account=account, strict_grounding=strict_grounding, **extra
@@ -267,10 +271,11 @@ def commit(
     strict_grounding: bool | None = None,
     max_tokens: int | None = None,
     allow_stale: bool = False,
+    transport=None,
 ) -> tuple[int, str]:
     """Commit the working tree using the drafted message (generating it if absent).
 
-    Returns ``(exit_code, message)``.
+    Returns ``(exit_code, message)``. ``transport`` is passed to :func:`inspect`.
     """
     repo = resolve_repo(target)
 
@@ -282,7 +287,8 @@ def commit(
     path = report_path(repo)
     if not path.is_file():
         inspect(target, ai=ai, model=model, provider=provider, language=language,
-                account=account, strict_grounding=strict_grounding, max_tokens=max_tokens)
+                account=account, strict_grounding=strict_grounding, max_tokens=max_tokens,
+                transport=transport)
     else:
         # `git add -A` below commits the tree as it is NOW; the draft describes the tree as
         # it was THEN. Shipping the two together writes a wrong description into history.
