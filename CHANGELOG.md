@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.6.1] - 2026-09-14
+
 ### Added
 - **A wait indicator while the model works.** A narration can take tens of seconds — a
   reasoning model sends nothing until it is done — and a silent terminal reads as a hung
@@ -705,7 +709,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.4...v0.6.0
 [0.5.4]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.3...v0.5.4
 [0.5.3]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.2...v0.5.3
