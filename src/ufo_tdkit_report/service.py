@@ -12,8 +12,18 @@ from pathlib import Path
 from ufo_tdkit_report.classify import ChangedFile, classify_change, file_note
 from ufo_tdkit_report.gitsource import GitSource
 from ufo_tdkit_report.model import SourceReport
-from ufo_tdkit_report.paths import classify_path
+from ufo_tdkit_report.paths import classify_path, is_lock_file
 from ufo_tdkit_report.rollup import DEFAULT_THRESHOLD, fold_facts
+
+
+def _omitted(git: GitSource, paths: list[str], source: str | None = None) -> tuple[str, ...]:
+    """Changed paths left out of the facts: lock files, and what .gitattributes marks generated.
+
+    Decided before classification — ``pnpm-lock.yaml`` would otherwise parse as a build
+    profile. Returned sorted so the report that names them stays byte-stable.
+    """
+    generated = git.generated_paths(paths, source=source)
+    return tuple(sorted(p for p in set(paths) if is_lock_file(p) or p in generated))
 
 
 def _decode(blob: bytes | None) -> str | None:
@@ -67,7 +77,7 @@ def extract_facts(
     base, head = git.resolve_spec(commit_spec)
     spec = commit_spec or f"{base}..{head}"
 
-    facts, changed_file_count = _extract_raw(git, base, head, family=family)
+    facts, changed_file_count, omitted = _extract_raw(git, base, head, family=family)
 
     folded = fold_facts(facts, threshold=threshold, schema=schema)
     profile_name, profile_options = _resolve_profile(repo, profile)
@@ -80,15 +90,18 @@ def extract_facts(
         profile_name=profile_name,
         profile_options=profile_options,
         repo=str(repo),
+        omitted_files=omitted,
     )
 
 
 def _extract_raw(git: GitSource, base: str, head: str, *, family: str | None = None):
-    """Return ``(raw_facts, changed_file_count)`` for a ``base..head`` diff.
+    """Return ``(raw_facts, changed_file_count, omitted_files)`` for a ``base..head`` diff.
 
     Shared by ``extract_facts`` (single diff) and the aggregator (per commit).
     """
     changed = git.list_changed(base, head)
+    omitted = _omitted(git, [cf.path for cf in changed], source=head)
+    changed = [cf for cf in changed if cf.path not in omitted]
     relevant = [cf for cf in changed if classify_path(cf.path) is not None]
 
     specs: list[str] = []
@@ -113,7 +126,7 @@ def _extract_raw(git: GitSource, base: str, head: str, *, family: str | None = N
     for cf in changed:
         if cf.path not in classified:
             facts.append(file_note(cf.path, cf.status))
-    return facts, len(changed)
+    return facts, len(changed), omitted
 
 
 def extract_working_facts(
@@ -130,6 +143,8 @@ def extract_working_facts(
     repo = str(repo)
     git = GitSource(repo)
     changes = git.list_working_changes()  # [(path, status_code), ...]
+    omitted = _omitted(git, [p for (p, _) in changes])  # the working tree's own .gitattributes
+    changes = [(p, st) for (p, st) in changes if p not in omitted]
     relevant = [(p, st) for (p, st) in changes if classify_path(p) is not None]
 
     old_specs = [f"HEAD:{p}" for (p, _) in relevant]
@@ -157,7 +172,15 @@ def extract_working_facts(
         raw_fact_count=len(facts),
         changed_file_count=len(changes),
         repo=str(repo),
+        omitted_files=omitted,
     )
+
+
+def _commit_extract(repo: str, sha: str, *, family: str | None = None):
+    """``(raw_facts, omitted_files)`` for one commit — what the aggregator needs of it."""
+    git = GitSource(str(repo))
+    facts, _, omitted = _extract_raw(git, f"{sha}~1", sha, family=family)
+    return facts, omitted
 
 
 def commit_facts(repo: str, sha: str, *, family: str | None = None):
@@ -166,9 +189,7 @@ def commit_facts(repo: str, sha: str, *, family: str | None = None):
     The storage seam for the aggregator: this currently re-extracts live, but a future
     ``git notes`` / trailer cache can be slotted in here without touching callers.
     """
-    git = GitSource(str(repo))
-    facts, _ = _extract_raw(git, f"{sha}~1", sha, family=family)
-    return facts
+    return _commit_extract(repo, sha, family=family)[0]
 
 
 def describe_changes(

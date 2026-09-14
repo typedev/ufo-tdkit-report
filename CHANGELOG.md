@@ -7,7 +7,38 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- **Lock files and generated files stay out of reports.** Dependency lock files (`uv.lock`,
+  `poetry.lock`, `package-lock.json`, `pnpm-lock.yaml`, …) and anything the font
+  repository's `.gitattributes` marks `linguist-generated` no longer appear among the facts
+  or in the prose. They are not dropped silently: the report closes with one line naming
+  them, and `to_dict()` carries them as `omitted_files`. The choice lives in the
+  repository rather than in tdreport's config, so a commit reports the same on every
+  machine; a range reads the attributes as of its head commit, so marking a file today does
+  not change what an older release note says.
+
+### Changed
+- **Narration explains feature changes instead of restating them.** A commit message that
+  said "add an ignore rule to a lookup" was faithful and told the reader nothing. Both
+  prompts now ask what a feature change *does* — which glyphs are replaced, in which
+  context, in which features — and allow the published meaning of registered OpenType
+  feature tags and UFO fontinfo keys. Still forbidden: guessing why, naming a stylistic
+  set, listing class members the facts do not, and explaining a build-profile option.
+- **Standalone lookups diff rule by rule.** A top-level `lookup NAME { }` used to be one
+  opaque block, so adding a line reported the whole lookup removed and re-added under
+  `feature ?` — commented-out lines included. It now reports the changed rule and the
+  features that use the lookup: ``lookup `DIGIT_PUNCT` (used in `calt`, `tnum`): rule added``.
+- A feature class change names its added and removed members (as written, nested
+  `@CLASS` references unexpanded) instead of only saying the class changed.
+- `to_dict()` gained `omitted_files`, and the draft fingerprint is computed from it — so a
+  commit draft written by 0.5.4 reads as outdated once and is redrafted.
+
 ### Fixed
+- **Reordering a feature class went unreported.** Class members were compared as sorted
+  sets, but in `sub @A by @B` they pair by position — swapping two members swaps which
+  glyph each input becomes, with no rule text changing. The report said nothing at all.
+  Class order is now kept, and a rule whose glyph pairs changed says exactly how:
+  ``feature ss02: `sub @OFF by @ON;` now maps `g` → `g.alt2` (was `g.alt1`)``.
 - **The test suite failed on Python 3.10**, the project's own supported floor: a test
   added in 0.5.4 imported `tomllib`, which is 3.11+ stdlib. Test-only — the released
   package is unaffected, and the production code parses `pyproject.toml` with a regex

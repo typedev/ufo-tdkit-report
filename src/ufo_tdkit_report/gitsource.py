@@ -176,6 +176,35 @@ class GitSource:
             i = nl + 1 + size + 1  # skip trailing newline
         return result
 
+    def generated_paths(self, paths: list[str], source: str | None = None) -> set[str]:
+        """The subset of ``paths`` the repo's .gitattributes marks ``linguist-generated``.
+
+        ``linguist-generated`` is the attribute GitHub already uses to collapse generated
+        files in diffs, so a repo that has marked something for that needs nothing new
+        here. ``source`` reads the attributes as of that commit, so a report on history
+        does not change with whatever is checked out today.
+        """
+        paths = [p for p in paths if p]
+        if not paths:
+            return set()
+        args = ["check-attr", "-z", "--stdin"]
+        if source:
+            args.append(f"--source={source}")
+        proc = self._runner(
+            ["git", "-C", self.repo, *args, "linguist-generated"],
+            input=("\0".join(paths) + "\0").encode(),
+            capture_output=True,
+            check=False,
+        )
+        out = proc.stdout if isinstance(proc.stdout, bytes) else proc.stdout.encode()
+        fields = out.decode("utf-8", "replace").split("\0")
+        # -z output: path NUL attribute NUL value NUL, repeated.
+        return {
+            fields[i]
+            for i in range(0, len(fields) - 2, 3)
+            if fields[i + 2] in ("set", "true")
+        }
+
     def blob_exists(self, spec: str) -> bool:
         """True if ``<rev>:<path>`` resolves to a blob (used for profile-in-repo check)."""
         proc = self._runner(

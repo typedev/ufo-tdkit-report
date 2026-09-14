@@ -54,6 +54,18 @@ def test_build_messages_includes_facts_and_grounding():
     assert "features: wire ss02 alternates" in user
 
 
+def test_both_prompts_explain_feature_code_but_still_not_build_options():
+    """A feature rule's meaning is written in the rule; a build option's is not."""
+    from ufo_tdkit_report import narrator
+
+    for system in (narrator._SYSTEM_PROMPT, narrator._COMMIT_SYSTEM_PROMPT):
+        assert "EXPLAIN" in system
+        assert "members pair by position" in system
+        assert "a build option does, describe only that it changed" in system
+        assert "never WHY" in system
+        assert "omitted (lock or generated files)" in system
+
+
 def test_parse_message_response_extracts_text():
     data = {
         "type": "message",

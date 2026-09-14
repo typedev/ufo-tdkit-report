@@ -63,6 +63,7 @@ class FactType(Enum):
     FEA_RULE_ADDED = "fea-rule-added"
     FEA_RULE_REMOVED = "fea-rule-removed"
     FEA_CLASS_CHANGED = "fea-class-changed"
+    FEA_MAPPING_CHANGED = "fea-mapping-changed"  # same rule text, different glyph pairs
     FEA_FEATURE_ADDED = "fea-feature-added"
     FEA_FEATURE_REMOVED = "fea-feature-removed"
     # designspace
@@ -166,12 +167,21 @@ class FontInfoSnapshot:
 
 @dataclass(frozen=True)
 class FeaSnapshot:
-    """Normalized features view: rules collapsed per feature tag + classes."""
+    """Normalized features view: rules per feature tag and per standalone lookup, plus classes.
+
+    Rules are sets (statement order inside a block is serialization, not meaning), but
+    class members keep **source order**: in ``sub @A by @B`` they pair by position.
+    ``substitutions`` maps ``(feature_tag, lookup, rule_text)`` to the glyph pairs that
+    rule expands to, so a class edit shows up as the pairs it changed.
+    """
 
     rules_by_feature: tuple[tuple[str, tuple[str, ...]], ...]
     classes: tuple[tuple[str, tuple[str, ...]], ...]
     top_level: tuple[str, ...]
     parse_failed: bool = False
+    rules_by_lookup: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    lookup_users: tuple[tuple[str, tuple[str, ...]], ...] = ()  # lookup -> features referencing it
+    substitutions: tuple[tuple[tuple[str, str, str], tuple[tuple[str, str], ...]], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -204,6 +214,7 @@ class Scope:
     master: str | None = None
     glyph: str | None = None
     feature_tag: str | None = None
+    lookup: str | None = None  # a standalone `lookup NAME { }` block in a .fea file
 
 
 @dataclass(frozen=True)
@@ -261,12 +272,16 @@ class SourceReport:
     # from `to_dict()` and from every renderer: it is a machine-local path, and letting
     # it reach the output would make byte-stable reports differ between machines.
     repo: str | None = None
+    # Changed files left out of the facts: dependency lock files, and anything the repo's
+    # own .gitattributes marks `linguist-generated`. Named, never silently dropped (T3).
+    omitted_files: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         return {
             "commit_spec": self.commit_spec,
             "raw_fact_count": self.raw_fact_count,
             "changed_file_count": self.changed_file_count,
+            "omitted_files": list(self.omitted_files),
             "profile_name": self.profile_name,
             "profile_options": self.profile_options,
             "facts": [f.to_dict() for f in self.folded_facts],
@@ -291,6 +306,7 @@ class RangeReport:
     profile_name: str | None = None
     profile_options: dict | None = None
     repo: str | None = None  # see SourceReport.repo — never serialized, never rendered
+    omitted_files: tuple[str, ...] = ()  # see SourceReport.omitted_files
 
     @property
     def commit_count(self) -> int:
@@ -303,6 +319,7 @@ class RangeReport:
             "commits": [{"sha": sha, "subject": subject} for sha, subject in self.commits],
             "raw_fact_count": self.raw_fact_count,
             "net_removed_count": self.net_removed_count,
+            "omitted_files": list(self.omitted_files),
             "profile_name": self.profile_name,
             "profile_options": self.profile_options,
             "facts": [f.to_dict() for f in self.folded_facts],

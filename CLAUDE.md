@@ -82,7 +82,14 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   `feaLib`, rule level), `designspace.py` (axes/masters/instances), `profile.py`
   (build-profile YAML, option level). Each parses to a **normalized, serialization-order-
   agnostic snapshot** (`model.py`) so editor re-serialization noise diffs to nothing.
-- **`rollup.py`** (`fold_facts`) is the compression core: it groups identical atoms across
+  "Order-agnostic" stops where order is meaning: **class members in `.fea` keep source
+  order**, because `sub @A by @B` pairs them by position. Sorting them once made a real fix
+  to a stylistic set (two glyphs swapped in a class) diff to nothing. Every single
+  substitution also records the glyph pairs it expands to, so an unchanged rule over an
+  edited class yields `FEA_MAPPING_CHANGED` — the exact glyph-to-glyph effect, computed.
+  Standalone `lookup NAME { }` blocks diff per rule under `Scope.lookup`, with the features
+  that reference them; they used to land in `top_level` as one opaque block, so a one-line
+  edit read as the whole lookup removed and re-added under `feature ?`.- **`rollup.py`** (`fold_facts`) is the compression core: it groups identical atoms across
   masters into one folded fact, groups component shifts by `(base, delta)` to surface
   batch ops, and above `--threshold` distinct glyphs emits statistics instead of
   enumerating. All ordering is total and value-based so output is **byte-stable** across
@@ -165,6 +172,15 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   fact: semantic when available, else a bare `added/removed/modified` constatation under an
   "Other files" section (`FactType.FILE_CHANGED` / `FileKind.OTHER`). `.gitignore` is
   honoured. Don't add a code path that drops a changed file.
+  The one sanctioned exclusion is **named, not dropped**: dependency lock files
+  (`paths.LOCK_FILES`) and paths the repo's `.gitattributes` marks `linguist-generated`
+  go to `report.omitted_files` and a closing "Omitted as lock or generated files" line,
+  and out of the facts and the prose ("uv.lock updated" crowded commit messages about
+  outlines). The decision lives in the *repository*, not in tdreport's config — a local
+  ignore setting would make the same commit report differently on two machines. Omission
+  runs before classification (`pnpm-lock.yaml` would parse as a build profile), and a
+  committed range reads attributes with `--source=<head>`, so marking a file today does
+  not rewrite an old release note.
 - **Build-tool-agnostic.** The tool has no built-in knowledge of any build tool's profile
   options. Build-profile *consequence* semantics are injected by a consumer via
   `fold_facts(..., schema=...)` / the `schema=` param on the public extract/aggregate API
@@ -200,6 +216,14 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   a change to them applies to release notes and commit messages alike. Resolution and key
   storage are pure-ish and unit-tested without network. See also the three bullets below,
   which carry the rules this one used to state alone.
+  "Restate" does not mean "list": a narration that only rephrased `ignore sub …` as
+  "add an ignore rule" was faithful and useless. OpenType feature code is the explicit
+  exception to "never explain meaning" — the effect is written in the rule, registered
+  feature tags and UFO fontinfo keys have published meanings — so the prompts ask for the
+  effect. What stays forbidden: intent (*why*), stylistic-set names, class members the
+  facts do not list, and build-profile option meanings. When the model needs more to
+  explain an effect, add it to the **facts** (as `lookup_users` and `FEA_MAPPING_CHANGED`
+  were), never to the prompt alone — the grounding check only knows what the facts say.
 - **One resolution chain, one config directory.** Every AI setting — provider, model,
   language, base URL, key, **token cap**, grounding strictness — resolves in
   `settings.resolve_ai_settings` and nowhere else:

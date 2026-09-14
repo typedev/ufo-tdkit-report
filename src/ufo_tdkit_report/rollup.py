@@ -49,6 +49,10 @@ def _key_detail(fact: ChangeFact) -> tuple:
         return ()  # identity is the glyph alone; deltas aggregate in the summary
     if fact.fact_type in _COMPONENT_TYPES:
         return (fact.detail[0],) if fact.detail else ()  # base name only
+    if fact.fact_type in (FactType.FEA_CLASS_CHANGED, FactType.FEA_MAPPING_CHANGED):
+        # The change itself is the identity: the same class edited differently in two
+        # .fea files is two lines, not one line showing whichever came first.
+        return fact.detail
     # kern pair, group name, fontinfo key, fea rule/class/feature, profile option key
     return (fact.detail[0],) if fact.detail else ()
 
@@ -62,7 +66,10 @@ def _fold_key(fact: ChangeFact) -> tuple:
     """
     if fact.fact_type in _COMPONENT_TYPES:
         return (fact.fact_type, fact.file_kind, _key_detail(fact))
-    return (fact.fact_type, fact.file_kind, fact.scope.glyph, fact.scope.feature_tag, _key_detail(fact))
+    return (
+        fact.fact_type, fact.file_kind, fact.scope.glyph, fact.scope.feature_tag, fact.scope.lookup,
+        _key_detail(fact),
+    )
 
 
 def _glyphs(group: list[ChangeFact]) -> list[str]:
@@ -94,6 +101,31 @@ def default_profile_schema():
     render as the bare, schema-agnostic line.
     """
     return None
+
+
+def _ticked(names, cap: int = 8) -> str:
+    names = list(names)
+    shown = ", ".join(f"`{n}`" for n in names[:cap])
+    return shown + (f" +{len(names) - cap} more" if len(names) > cap else "")
+
+
+def _fea_where(sample: ChangeFact) -> str:
+    """Where in a .fea file a fact sits: a feature, a standalone lookup, or top level."""
+    if sample.scope.feature_tag:
+        return f"feature {sample.scope.feature_tag}"
+    if sample.scope.lookup:
+        users = sample.detail[1] if len(sample.detail) > 1 else ()
+        used = f" (used in {_ticked(users)})" if users else ""
+        return f"lookup `{sample.scope.lookup}`{used}"
+    return "top level"
+
+
+def _mapping(glyph: str, old: str | None, new: str | None) -> str:
+    if old is None:
+        return f"`{glyph}` → `{new}` (new)"
+    if new is None:
+        return f"`{glyph}` no longer substituted (was `{old}`)"
+    return f"`{glyph}` → `{new}` (was `{old}`)"
 
 
 def _summarize(key: tuple, group: list[ChangeFact], schema=None) -> str:
@@ -200,13 +232,32 @@ def _summarize(key: tuple, group: list[ChangeFact], schema=None) -> str:
         return f"fontinfo `{key_name}` changed {old} -> {new}{master_suffix}"
 
     if fact_type in (FactType.FEA_RULE_ADDED, FactType.FEA_RULE_REMOVED):
-        tag = sample.scope.feature_tag or "?"
         verb = "added" if fact_type is FactType.FEA_RULE_ADDED else "removed"
         rule = sample.detail[0] if sample.detail else ""
-        return f"feature {tag}: rule {verb} `{rule}`{master_suffix}"
+        return f"{_fea_where(sample)}: rule {verb} `{rule}`{master_suffix}"
 
     if fact_type is FactType.FEA_CLASS_CHANGED:
-        return f"feature class `{sample.detail[0]}` changed{master_suffix}"
+        name = sample.detail[0]
+        if len(sample.detail) < 4:
+            return f"feature class `@{name}` changed{master_suffix}"
+        _, added, removed, reordered = sample.detail
+        if reordered:
+            change = "members reordered"
+        else:
+            parts = []
+            if added:
+                parts.append(f"added {_ticked(added)}")
+            if removed:
+                parts.append(f"removed {_ticked(removed)}")
+            change = "; ".join(parts)
+        return f"feature class `@{name}`: {change}{master_suffix}"
+
+    if fact_type is FactType.FEA_MAPPING_CHANGED:
+        rule, changes = sample.detail
+        cap = 6
+        shown = "; ".join(_mapping(*change) for change in changes[:cap])
+        more = f" +{len(changes) - cap} more" if len(changes) > cap else ""
+        return f"{_fea_where(sample)}: `{rule}` now maps {shown}{more}{master_suffix}"
 
     if fact_type in (FactType.FEA_FEATURE_ADDED, FactType.FEA_FEATURE_REMOVED):
         verb = "added" if fact_type is FactType.FEA_FEATURE_ADDED else "removed"

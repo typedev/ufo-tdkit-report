@@ -15,6 +15,26 @@ class _FakeProc:
         self.returncode = returncode
 
 
+def test_generated_paths_parses_check_attr_and_pins_the_source():
+    calls = []
+    payload = (
+        b"a.fea\x00linguist-generated\x00set\x00b.fea\x00linguist-generated\x00unspecified\x00"
+        b"c.fea\x00linguist-generated\x00true\x00d.fea\x00linguist-generated\x00false\x00"
+    )
+
+    def runner(args, **kwargs):
+        calls.append((args, kwargs.get("input")))
+        return _FakeProc(payload)
+
+    gs = GitSource("/x", runner=runner)
+    assert gs.generated_paths(["a.fea", "b.fea", "c.fea", "d.fea"], source="abc") == {"a.fea", "c.fea"}
+    args, stdin = calls[0]
+    assert "--source=abc" in args
+    assert stdin == b"a.fea\x00b.fea\x00c.fea\x00d.fea\x00"
+    assert gs.generated_paths([]) == set()
+    assert len(calls) == 1  # nothing to ask about, no subprocess
+
+
 def test_resolve_spec_variants():
     gs = GitSource("/x", runner=lambda *a, **k: _FakeProc())
     assert gs.resolve_spec(None) == ("HEAD~1", "HEAD")

@@ -34,11 +34,15 @@ particular font compiler.
 - **Commit assistant** — draft a commit message from the working tree, edit it, commit it.
 - **Range / release notes** — aggregate a tag/commit range into notes.
 - **Semantic source diff** — the ground truth under the prose: outlines (coordinate-based,
-  not text), kerning/groups, fontinfo, OpenType features (`feaLib` rule level), designspace
-  (axes/masters/instances), and build-profile YAML (option level). `--no-ai` gives you
-  exactly this and nothing else.
+  not text), kerning/groups, fontinfo, OpenType features (`feaLib` rule level, per feature
+  and per standalone lookup — and when a class edit re-pairs a `sub @A by @B`, exactly which
+  glyph now becomes which), designspace (axes/masters/instances), and build-profile YAML
+  (option level). `--no-ai` gives you exactly this and nothing else.
 - **No silent omissions** — every changed tracked file surfaces as a fact (semantic when
   available, else a bare added/removed/modified note). `.gitignore` is honoured.
+  Dependency lock files (`uv.lock`, `package-lock.json`, …) and anything your
+  `.gitattributes` marks `linguist-generated` are left out of the facts and the prose, and
+  named in one closing line of the report rather than dropped.
 - **Your choice of AI provider** — Claude, GPT, Gemini, Grok, Mistral, Groq, DeepSeek,
   Qwen, Kimi, GLM, OpenRouter, or a local model (Ollama, LM Studio, vLLM, llama.cpp) via
   any OpenAI-compatible endpoint. See the [table](#providers) for the full list.
@@ -567,6 +571,23 @@ narration precisely so that a human can.
 
 The narrator is strictly grounded — it may only restate the deterministic facts, which
 are always attached verbatim in a `<details>` block — and it never publishes anything.
+
+Restating is not the same as parroting, though. OpenType feature code carries its meaning
+in the rule itself, so for feature changes the narrator explains what the text now does —
+"`f_i` no longer forms when `i` is followed by a digit" rather than the `ignore sub` line
+it was written as — and it may use the published meaning
+of registered feature tags and UFO fontinfo keys. It still never says *why* a change was
+made, never names a stylistic set, and never explains a build-profile option.
+
+To keep a file out of reports altogether, mark it in the font repository's own
+`.gitattributes` — the same attribute GitHub uses to collapse generated files in a diff:
+
+```gitattributes
+build/*.fea  linguist-generated
+```
+
+Reports on history read the attributes as of the reported commit, so marking a file today
+does not rewrite what an older release note said.
 
 In code, everything unset resolves the same way:
 

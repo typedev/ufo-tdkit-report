@@ -98,12 +98,28 @@ _GROUNDING_RULES = """\
   feature, metric, or build option that is not in the facts.
 - Never invent or guess the NAME or MEANING of a codepoint, glyph, or build option.
   If a fact says `uni20C5`, write `uni20C5` — do not name it. If you do not know what
-  an option does, describe only that it changed; do not explain its effect.
+  a build option does, describe only that it changed; do not explain its effect.
+- OpenType feature code is the exception: its meaning is written in the rule, so EXPLAIN
+  what a feature change does instead of restating the rule. `sub a by a.alt` replaces
+  `a` with `a.alt`; in a contextual rule the marked (') glyph is the one replaced and the
+  glyphs around it are the context it requires; `ignore sub` is an exception — in that
+  context the lookup's later rules do not apply; a lookup takes effect in the features
+  the facts say it is used in; in `sub @A by @B` members pair by position, so a
+  "now maps" fact is the exact glyph-to-glyph effect. Registered OpenType feature tags
+  have published meanings you may state (`pnum` proportional figures, `tnum` tabular
+  figures, `calt` contextual alternates, `case` case-sensitive forms, `frac`, `liga`, …);
+  `ssNN`/`cvNN` are only "stylistic set NN"/"character variant NN" — their names are the
+  designer's. UFO fontinfo keys also have a published meaning (vertical metrics, style
+  linking, naming) you may state. Describe the effect only in terms of glyphs and classes
+  the facts name — never list members of a class the facts do not list.
+- Say what changed and what it does, never WHY: the designer's intent is not in the facts.
+- Files named as omitted (lock or generated files) are not source changes: do not mention them.
 - Do not quantify what the facts do not quantify. They say a glyph was redrawn, not how
   many points moved; they say how many masters, and which. Never supply a count, a
   percentage or a magnitude of your own — an invented number reads as measurement.
-- Do not editorialize about quality, intent, or impact beyond what the facts state.
-  Where the facts are ambiguous, hedge ("appears to", "according to the source diff").
+- Do not editorialize about quality, intent, or impact beyond what the facts and the
+  rules they quote state. Where they are ambiguous, hedge ("appears to", "according to
+  the source diff").
 - Wrap every glyph name, codepoint, feature/class tag, master name and file path in
   `backticks`, spelled exactly as the facts spell it. Do NOT backtick an ordinary word
   that merely happens to also be a glyph name — "in one glyph across four masters" is
@@ -133,7 +149,10 @@ Rules — follow them exactly:
 {_GROUNDING_RULES}
 - Output a real commit message: a single concise SUBJECT line (≤ 72 chars, imperative mood,
   no trailing period), then a blank line, then a short body of `- ` bullets grouping the
-  changes. No Markdown headings, no preamble, no "verify before publishing" notes.\
+  changes. No Markdown headings, no preamble, no "verify before publishing" notes.
+- A feature bullet says what the text now does ("`f_i` no longer forms when `i` is
+  followed by a digit"), not the rule it was written as; quote a rule only when the
+  effect cannot be said more plainly.\
 """
 
 

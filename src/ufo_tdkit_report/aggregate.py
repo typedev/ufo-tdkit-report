@@ -14,7 +14,7 @@ from __future__ import annotations
 from ufo_tdkit_report.gitsource import GitSource
 from ufo_tdkit_report.model import ChangeFact, FactType, RangeReport
 from ufo_tdkit_report.rollup import DEFAULT_THRESHOLD, fold_facts
-from ufo_tdkit_report.service import _resolve_profile, commit_facts
+from ufo_tdkit_report.service import _commit_extract, _resolve_profile
 
 # Inverse fact-type pairs and the entity key that must match for them to cancel.
 # Key derivation: (uses_glyph_scope, detail_index). detail_index None -> no detail key.
@@ -41,7 +41,7 @@ def _entity_key(fact: ChangeFact) -> tuple:
     if ft in (FactType.KERN_PAIR_ADDED, FactType.KERN_PAIR_REMOVED):
         return ("kern", fact.detail[0] if fact.detail else None)
     if ft in (FactType.FEA_RULE_ADDED, FactType.FEA_RULE_REMOVED):
-        return ("fea_rule", fact.scope.feature_tag, fact.detail[0] if fact.detail else None)
+        return ("fea_rule", fact.scope.feature_tag, fact.scope.lookup, fact.detail[0] if fact.detail else None)
     if ft in (FactType.FEA_FEATURE_ADDED, FactType.FEA_FEATURE_REMOVED):
         return ("fea_feature", fact.detail[0] if fact.detail else None)
     if ft in (FactType.PROFILE_OPTION_ADDED, FactType.PROFILE_OPTION_REMOVED):
@@ -102,8 +102,11 @@ def aggregate_range(
     commits = git.list_commits(base, head)
 
     all_facts: list[ChangeFact] = []
+    omitted: set[str] = set()
     for commit in commits:
-        all_facts.extend(commit_facts(repo, commit.sha, family=family))
+        facts, commit_omitted = _commit_extract(repo, commit.sha, family=family)
+        all_facts.extend(facts)
+        omitted.update(commit_omitted)
 
     kept, net_removed = net_out(all_facts)
     folded = fold_facts(kept, threshold=threshold, schema=schema)
@@ -118,4 +121,5 @@ def aggregate_range(
         profile_name=profile_name,
         profile_options=profile_options,
         repo=str(repo),
+        omitted_files=tuple(sorted(omitted)),
     )

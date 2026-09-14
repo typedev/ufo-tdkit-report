@@ -38,6 +38,56 @@ def _repo(tmp_path):
     return repo, glyphs
 
 
+def test_lock_and_generated_files_are_named_not_described(tmp_path):
+    """Omitted from the facts, but never silently: one closing line names them (T3)."""
+    from ufo_tdkit_report import aggregate_range
+
+    repo, _ = _repo(tmp_path)
+    (repo / ".gitattributes").write_text("build/*.fea linguist-generated\n")
+    (repo / "build").mkdir()
+    (repo / "build" / "all.fea").write_text("feature liga { sub f i by f_i; } liga;\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "generated features")
+    (repo / "uv.lock").write_text("lock\n")
+    # A .yaml lock file would otherwise parse as a build profile: omission comes first.
+    (repo / "pnpm-lock.yaml").write_text("lockfileVersion: 9\n")
+    (repo / "build" / "all.fea").write_text("feature liga { sub f l by f_l; } liga;\n")
+    (repo / "README.md").write_text("v2\n")
+
+    working = extract_working_facts(repo)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "edit")
+    committed = extract_facts(repo, "HEAD~1..HEAD")
+
+    omitted = ("build/all.fea", "pnpm-lock.yaml", "uv.lock")
+    line = "_Omitted as lock or generated files: `build/all.fea`, `pnpm-lock.yaml`, `uv.lock`._"
+    for report in (working, committed):
+        assert report.omitted_files == omitted
+        assert report.changed_file_count == 1
+        assert [f.fact_type for f in report.folded_facts] == [FactType.FILE_CHANGED]
+        assert "`README.md` (modified)" in report.render_text()
+        assert line in report.render_text()
+        assert report.to_dict()["omitted_files"] == list(omitted)
+    assert aggregate_range(str(repo), "HEAD~1..HEAD").omitted_files == omitted
+
+
+def test_generated_marking_is_read_as_of_the_reported_commit(tmp_path):
+    """A report on history must not change because .gitattributes changed since."""
+    repo, _ = _repo(tmp_path)
+    (repo / "gen.txt").write_text("1\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "add")
+    (repo / "gen.txt").write_text("2\n")
+    _git(repo, "commit", "-q", "-am", "edit")
+    (repo / ".gitattributes").write_text("gen.txt linguist-generated\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "mark generated")
+
+    before_marking = extract_facts(repo, "HEAD~2..HEAD~1")
+    assert before_marking.omitted_files == ()
+    assert "`gen.txt` (modified)" in before_marking.render_text()
+
+
 def test_status_verb_maps_porcelain_codes():
     assert status_verb("A") == "added"
     assert status_verb("D") == "removed"

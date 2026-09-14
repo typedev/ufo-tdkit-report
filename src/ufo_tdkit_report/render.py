@@ -90,6 +90,21 @@ def _render_masters(folded_facts) -> list[str]:
     return ["", "### Masters touched", "- " + ", ".join(f"`{m}`" for m in masters)]
 
 
+def _render_omitted(omitted_files) -> list[str]:
+    """One closing line naming the files left out of the facts, or nothing.
+
+    Named rather than dropped: leaving a changed file out without a word is the silent
+    omission T3 forbids. Lock files go unannounced in a commit message, where the diff
+    already shows them; the report is where a reader checks what was looked at.
+    """
+    if not omitted_files:
+        return []
+    cap = 8
+    shown = ", ".join(f"`{path}`" for path in omitted_files[:cap])
+    more = f" +{len(omitted_files) - cap} more" if len(omitted_files) > cap else ""
+    return ["", f"_Omitted as lock or generated files: {shown}{more}._"]
+
+
 def _credit(ai: bool = False, model: str | None = None, provider: str | None = None) -> str:
     """Bare credit text: tool + version (+ AI provider/model when narrated). No markup.
 
@@ -131,10 +146,12 @@ def render_report(report: SourceReport, *, footer: bool = True) -> str:
     if not report.folded_facts:
         lines.append("")
         lines.append("_No semantic source changes (binary-diff territory only)._")
+        lines.extend(_render_omitted(report.omitted_files))
         return _with_footer(lines, footer)
 
     lines.extend(_render_facts(report.folded_facts))
     lines.extend(_render_masters(report.folded_facts))
+    lines.extend(_render_omitted(report.omitted_files))
     return _with_footer(lines, footer)
 
 
@@ -197,8 +214,10 @@ def render_range_report(report: RangeReport, *, footer: bool = True) -> str:
     if not report.folded_facts:
         lines.append("")
         lines.append("_No semantic source changes across the range (binary-diff territory only)._")
+        lines.extend(_render_omitted(report.omitted_files))
         return _with_footer(lines, footer)
 
     lines.extend(_render_facts(report.folded_facts))
     lines.extend(_render_masters(report.folded_facts))
+    lines.extend(_render_omitted(report.omitted_files))
     return _with_footer(lines, footer)
