@@ -155,8 +155,9 @@ PROVIDERS: dict[str, Provider] = {
             dialect="openai",
             base_url="https://api.deepseek.com/v1",
             default_model="",
-            known_models=(("deepseek-chat", "DeepSeek Chat"), ("deepseek-reasoner", "DeepSeek Reasoner")),
+            known_models=(("deepseek-v4-pro", "DeepSeek V4 Pro"), ("deepseek-flash", "DeepSeek Flash")),
             legacy_key_var="DEEPSEEK_API_KEY",
+            notes="`deepseek-chat` and `deepseek-reasoner` are still accepted, but both now serve `deepseek-flash`.",
         ),
         Provider(
             name="qwen",

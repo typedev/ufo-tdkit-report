@@ -72,7 +72,7 @@ def test_menu_changes_provider_model_and_language(monkeypatch):
     assert settings_ui.run_settings_menu() == 0
     resolved = settings.resolve_ai_settings()
     assert (resolved.provider_name, resolved.model, resolved.language) == (
-        "deepseek", "deepseek-chat", "German",
+        "deepseek", "deepseek-v4-pro", "German",
     )
 
 
@@ -157,7 +157,7 @@ def test_add_account_flow_asks_for_each_part(monkeypatch, capsys):
 
     resolved = settings.resolve_ai_settings(account="work")
     assert resolved.provider_name == "deepseek"
-    assert resolved.model == "deepseek-chat"
+    assert resolved.model == "deepseek-v4-pro"
     assert resolved.language == "German"
     assert resolved.api_key == "sk-work-9876"
 

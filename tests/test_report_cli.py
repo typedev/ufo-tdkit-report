@@ -228,7 +228,7 @@ def test_set_model_uses_the_accounts_provider(tmp_path, monkeypatch):
     monkeypatch.setattr("builtins.input", lambda _prompt: "1")
     # No network: the offline hint list for THAT provider is what gets offered.
     assert main(["--ai-account", "acme", "set-model"]) == 0
-    assert settings.resolve_ai_settings(account="acme").model == "deepseek-chat"
+    assert settings.resolve_ai_settings(account="acme").model == "deepseek-v4-pro"
 
 
 def test_set_lang_and_set_provider_without_a_tty_are_errors(tmp_path, monkeypatch, capsys):
@@ -569,7 +569,7 @@ def test_account_add_on_a_tty_runs_the_guided_flow(tmp_path, monkeypatch, capsys
     assert main(["account", "add"]) == 0  # no name needed: it asks
     resolved = settings.resolve_ai_settings(account="work")
     assert (resolved.provider_name, resolved.model, resolved.api_key) == (
-        "deepseek", "deepseek-chat", "sk-typed",
+        "deepseek", "deepseek-v4-pro", "sk-typed",
     )
     assert "sk-typed" not in capsys.readouterr().out
 

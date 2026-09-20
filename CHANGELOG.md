@@ -9,6 +9,18 @@ All notable changes to this project are documented here. The format follows
 
 _Nothing yet._
 
+## [0.6.2] - 2026-09-20
+
+### Changed
+- **DeepSeek's offline hint list names the models that still exist.** The built-in list
+  offered `deepseek-chat` and `deepseek-reasoner`; the provider now serves `deepseek-flash`
+  for both, so picking "DeepSeek Reasoner" from the menu quietly got a non-reasoning model
+  and a report footer naming a model that had not run. The hints are now `deepseek-v4-pro`
+  and `deepseek-flash`, and the provider row carries a note that the two old ids are still
+  accepted but resolve to `deepseek-flash`. This only ever affected the offline path — with
+  a key and a network the menu is fetched live from `/models` and was already right — and a
+  raw model id is still accepted either way, so nothing that was configured stops working.
+
 ## [0.6.1] - 2026-09-14
 
 ### Added
@@ -709,7 +721,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.4...v0.6.0
 [0.5.4]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.3...v0.5.4

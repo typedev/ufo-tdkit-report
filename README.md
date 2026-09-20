@@ -412,7 +412,7 @@ repos with their bindings:
 Settings — account 'default'
 
    1. AI provider   deepseek
-   2. Model         deepseek-chat
+   2. Model         deepseek-v4-pro
    3. API key       set (…4f2a)
    4. Language      German
    5. Base URL      https://api.deepseek.com/v1
@@ -491,7 +491,7 @@ account's provider:
 
 ```bash
 tdreport set-model                  # menu; Enter keeps the current model
-tdreport set-model deepseek-chat    # or set one directly (no menu, works in CI)
+tdreport set-model deepseek-v4-pro  # or set one directly (no menu, works in CI)
 ```
 
 The menu is fetched live from the provider's `/models` endpoint, so it never goes stale;
