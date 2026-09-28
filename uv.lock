@@ -25,16 +25,16 @@ wheels = [
 
 [[package]]
 name = "dssketch"
-version = "1.2.0"
+version = "1.2.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "defcon" },
     { name = "fonttools" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4c/fc/9aa6c601a810d513979d9793e0484267c7d52005cc3437a937cfc792e518/dssketch-1.2.0.tar.gz", hash = "sha256:9373c762c6c96c3e211cb8496f40dc9b09ca988fff82993c16f83c84683b1e53", size = 119791, upload-time = "2026-09-28T00:09:21.108Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/50/ade206736235b421ba6ea4d724faff7877fe82881d6f481031b37ba678e9/dssketch-1.2.1.tar.gz", hash = "sha256:f6447a56a596adfc6752dda4af7e323157341da69ea7edd63cc340ff2ca9afe2", size = 119900, upload-time = "2026-09-28T00:35:27.673Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/77/85/9c901ad19ffab217e187f82aace78330d5bbbd487b72b54579352e6e8ca6/dssketch-1.2.0-py3-none-any.whl", hash = "sha256:b23a7a2847a8b5430938a5a891f7939bfaee5e7a2236b99e9bf944a260558902", size = 101293, upload-time = "2026-09-28T00:09:19.754Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/14/42c7529077c0277bcb407b7489603b86f69c7bef312c3cc6eeaffa74cc57/dssketch-1.2.1-py3-none-any.whl", hash = "sha256:d1030ad1033f36fe6dfb94eef1861f724824eae2f70cfae27766a017344f886a", size = 101418, upload-time = "2026-09-28T00:35:26.136Z" },
 ]
 
 [[package]]
@@ -337,7 +337,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "defcon" },
-    { name = "dssketch", specifier = ">=1.2.0" },
+    { name = "dssketch", specifier = ">=1.2.1" },
     { name = "fonttools", specifier = ">=4.38.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "pyyaml" },

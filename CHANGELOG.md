@@ -7,7 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Fixed
+- **`.dssketch` masters whose names contain spaces are no longer merged.** DSSketch before
+  1.2.1 kept only the first word of an unquoted name, so `My Font Thin` and `My Font Black`
+  both became `My`: tdreport saw one master where there were several, and a move of one of
+  them could vanish from the report. A family rename written without quotes
+  (`family Sans Pro`) likewise read as no change. The dependency floor is now
+  `dssketch>=1.2.1`, which takes an unquoted name whole.
 
 ## [0.6.3] - 2026-09-27
 

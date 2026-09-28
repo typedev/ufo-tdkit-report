@@ -118,6 +118,16 @@ def test_master_moved_and_added():
     ]
 
 
+def test_names_with_spaces_are_kept_whole():
+    # Before DSSketch 1.2.1 an unquoted name kept its first word: every `My Font …` master
+    # became `My`, merging them into one, and a family rename read as no change.
+    doc = DOC.replace("Sans_Thin [", "My Font Thin [").replace("Sans_Black [", "My Font Black [")
+    assert {"My Font Thin", "My Font Black"} <= set(parse_dssketch(doc).sources)
+    assert _lines(DOC, DOC.replace("family Sans", "family Sans Pro")) == [
+        "`sources/Sans.dssketch`: family `Sans Pro` (was `Sans`)"
+    ]
+
+
 def test_rules_compare_as_written_with_open_bounds():
     new = DOC.replace("(weight >= Bold)", "(weight >= Regular)")
     assert _lines(DOC, new) == [

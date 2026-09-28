@@ -32,7 +32,7 @@ dependencies = [
     "fonttools>=4.38.0",
     "defcon",
     "pyyaml",
-    "dssketch>=1.2.0",
+    "dssketch>=1.2.1",
 ]
 
 [project.optional-dependencies]
