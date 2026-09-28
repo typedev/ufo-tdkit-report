@@ -60,7 +60,7 @@ def classify_path(path: str) -> FileKind | None:
         return FileKind.FONTINFO
     if lower.endswith(".fea"):
         return FileKind.FEATURES
-    if lower.endswith(".designspace"):
+    if lower.endswith((".designspace", ".dssketch")):  # the same document, two notations
         return FileKind.DESIGNSPACE
     if lower.endswith((".yaml", ".yml")):
         return FileKind.PROFILE

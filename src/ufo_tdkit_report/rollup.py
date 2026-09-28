@@ -162,12 +162,14 @@ def _summarize_designspace(fact_type: FactType, sample: ChangeFact, group: list[
         name, changes = detail
         parts = []
         for user, old, new in changes:
+            # A .dssketch line that names a label without a user value is keyed by it.
+            point = f"`{user}`" if isinstance(user, str) else f"user {user:g}"
             if new is None:
-                parts.append(f"user {user:g} no longer mapped (was {old:g})")
+                parts.append(f"{point} no longer mapped (was {old:g})")
             elif old is None:
-                parts.append(f"user {user:g} → design {new:g} (new)")
+                parts.append(f"{point} → design {new:g} (new)")
             else:
-                parts.append(f"user {user:g} → design {new:g} (was {old:g})")
+                parts.append(f"{point} → design {new:g} (was {old:g})")
         cap = 8
         more = f" +{len(parts) - cap} more" if len(parts) > cap else ""
         return f"{where}axis `{name}` map: {'; '.join(parts[:cap])}{more}"
@@ -176,7 +178,12 @@ def _summarize_designspace(fact_type: FactType, sample: ChangeFact, group: list[
         name, added, removed = detail
 
         def labels(items) -> str:
-            return ", ".join(f"`{label}` ({value:g}{', ' + flags if flags else ''})" for value, label, flags in items)
+            def one(value, label, flags) -> str:
+                inside = [f"{value:g}"] if value is not None else []
+                inside += [flags] if flags else []
+                return f"`{label}`" + (f" ({', '.join(inside)})" if inside else "")
+
+            return ", ".join(one(*item) for item in items)
 
         parts = [f"added {labels(added)}"] if added else []
         parts += [f"removed {labels(removed)}"] if removed else []
@@ -207,6 +214,14 @@ def _summarize_designspace(fact_type: FactType, sample: ChangeFact, group: list[
         if after is None:
             return f"{where}rule `{name}` removed (was {_rule_text(before)})"
         return f"{where}rule `{name}`: {_rule_text(after)} (was {_rule_text(before)})"
+
+    if fact_type is FactType.DS_SETTING_CHANGED:
+        key, before, after = detail
+        if before is None:
+            return f"{where}{key} set to `{after}`"
+        if after is None:
+            return f"{where}{key} removed (was `{before}`)"
+        return f"{where}{key} `{after}` (was `{before}`)"
 
     return f"{where}{fact_type.value}"
 

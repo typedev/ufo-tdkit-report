@@ -111,12 +111,23 @@ def parse_designspace(blob: str | None) -> DesignspaceSnapshot | None:
     )
 
 
+def _order(key) -> tuple:
+    """Total order over map keys that may mix numbers and labels (a .dssketch axis map)."""
+    return (isinstance(key, str), key)
+
+
+def label_order(label: tuple) -> tuple:
+    """Total order over ``(user value, name, flags)`` labels whose user value may be None."""
+    value, name, flags = label
+    return (value is None, value or 0.0, name, flags)
+
+
 def _value_changes(old_pairs, new_pairs) -> tuple:
     """``(key, old, new)`` for every key whose value differs; None where it is absent."""
     old_map, new_map = dict(old_pairs), dict(new_pairs)
     return tuple(
         (key, old_map.get(key), new_map.get(key))
-        for key in sorted(set(old_map) | set(new_map))
+        for key in sorted(set(old_map) | set(new_map), key=_order)
         if old_map.get(key) != new_map.get(key)
     )
 
@@ -140,7 +151,8 @@ def diff_designspace(old: DesignspaceSnapshot, new: DesignspaceSnapshot, scope: 
             fact(FactType.AXIS_MAP_CHANGED, (name, changes))
         before, after = set(old_labels.get(name, ())), set(new_labels.get(name, ()))
         if before != after:
-            fact(FactType.AXIS_LABELS_CHANGED, (name, tuple(sorted(after - before)), tuple(sorted(before - after))))
+            added, removed = sorted(after - before, key=label_order), sorted(before - after, key=label_order)
+            fact(FactType.AXIS_LABELS_CHANGED, (name, tuple(added), tuple(removed)))
 
     old_sources, new_sources = set(old.sources), set(new.sources)
     for name in sorted(new_sources - old_sources):
@@ -167,5 +179,8 @@ def diff_designspace(old: DesignspaceSnapshot, new: DesignspaceSnapshot, scope: 
     new_rules = {name: (cond, subs) for name, cond, subs in new.rules}
     for name, before, after in _value_changes(old_rules, new_rules):
         fact(FactType.DS_RULE_CHANGED, (name, before, after))
+
+    for key, before, after in _value_changes(old.settings, new.settings):
+        fact(FactType.DS_SETTING_CHANGED, (key, before, after))
 
     return facts

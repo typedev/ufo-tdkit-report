@@ -7,7 +7,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+- **`.dssketch` sources are diffed, not just named.** A family kept in
+  [DSSketch](https://github.com/typedev/DSSketch) notation used to surface as a bare
+  "modified" line under Other files. It now parses to the same snapshot as a
+  `.designspace` and reports the same facts: axis extents, map points and labels, master
+  locations, rules with their conditions, plus the document-level lines only DSSketch
+  writes (`instances auto`/`off`, `skip`, family, base master, master options, avar2
+  variables and mappings). It is diffed **as written**, never converted: conversion opens
+  the UFOs on disk to expand `instances auto` and wildcard rules, which would describe an
+  old revision in terms of today's sources. Wildcard rules therefore read as their
+  pattern (`` `dollar* cent*` → `.rvrn` ``), and an unnamed rule is identified by what it
+  substitutes, since DSSketch names it by position and inserting one renumbers the rest.
+- A line like `Light > 295` leaves its user value to DSSketch's bundled standards table,
+  which changes between DSSketch releases (1.2.0 moved the width values to the OS/2 spec)
+  while the file does not. Such map points are keyed by their label and carry no user
+  value, so upgrading DSSketch can never read as a source edit; `300 Light > 295` keeps
+  its written 300.
+- New dependency `dssketch>=1.2.0` — the first release whose parser imports neither defcon
+  nor fontTools. Its own dependencies (fonttools, defcon, PyYAML) were already ours.
 
 ## [0.6.2] - 2026-09-20
 

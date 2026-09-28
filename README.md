@@ -37,7 +37,8 @@ particular font compiler.
   not text), kerning/groups, fontinfo, OpenType features (`feaLib` rule level, per feature
   and per standalone lookup — and when a class edit re-pairs a `sub @A by @B`, exactly which
   glyph now becomes which), designspace (axis extents, map points and labels, where
-  masters and instances sit, rules with their conditions), and build-profile YAML
+  masters and instances sit, rules with their conditions — from `.designspace` or
+  [DSSketch](https://github.com/typedev/DSSketch) `.dssketch` alike), and build-profile YAML
   (option level). `--no-ai` gives you exactly this and nothing else.
 - **No silent omissions** — every changed tracked file surfaces as a fact (semantic when
   available, else a bare added/removed/modified note). `.gitignore` is honoured.

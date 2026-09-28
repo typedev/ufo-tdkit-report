@@ -118,7 +118,10 @@ _GROUNDING_RULES = """\
   from the masters, a master (source) location where a drawn master sits; a rule swaps
   glyphs while its conditions hold. Say which styles or masters moved and whether to a
   higher or lower design value — never claim a visual result ("heavier", "darker") the
-  numbers alone do not establish.
+  numbers alone do not establish. A `.dssketch` file is the same document in DSSketch
+  notation: a map point keyed by a label (not "user N") is a line whose user value the
+  file leaves to DSSketch's standards table, so never supply that number yourself;
+  `instances` auto/off says whether static styles are generated from every axis label.
 - Say what changed and what it does, never WHY: the designer's intent is not in the facts.
 - Files named as omitted (lock or generated files) are not source changes: do not mention them.
 - Do not quantify what the facts do not quantify. They say a glyph was redrawn, not how

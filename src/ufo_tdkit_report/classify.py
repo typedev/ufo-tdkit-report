@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ufo_tdkit_report import designspace, features, glif, plists, profile
+from ufo_tdkit_report import designspace, dssketch, features, glif, plists, profile
 from ufo_tdkit_report.model import ChangeFact, FactType, FileKind, Scope
 from ufo_tdkit_report.paths import classify_path, master_of
 
@@ -77,6 +77,8 @@ def classify_change(cf: ChangedFile, family: str | None = None) -> list[ChangeFa
         FileKind.PROFILE: (profile.parse_profile, profile.diff_profile),
     }[kind]
     parse_fn, diff_fn = parse_diff
+    if cf.path.lower().endswith(".dssketch"):
+        parse_fn = dssketch.parse_dssketch  # parses to the designspace snapshot, diffs the same way
 
     old = parse_fn(cf.old_blob)
     new = parse_fn(cf.new_blob)

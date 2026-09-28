@@ -76,6 +76,7 @@ class FactType(Enum):
     INSTANCE_CHANGED = "instance-changed"
     INSTANCE_MOVED = "instance-moved"
     DS_RULE_CHANGED = "ds-rule-changed"
+    DS_SETTING_CHANGED = "ds-setting-changed"  # .dssketch document-level lines (instances auto, avar2, ...)
     # build profile
     PROFILE_OPTION_ADDED = "profile-option-added"
     PROFILE_OPTION_REMOVED = "profile-option-removed"
@@ -193,6 +194,10 @@ class DesignspaceSnapshot:
     """Designspace view: axes with maps and labels, masters and instances with locations, rules.
 
     ``axes`` is ``(name, "tag extent")``; ``rules`` is ``(name, conditions, subs)``.
+    Filled from a ``.designspace`` or a ``.dssketch`` alike, so both diff the same way.
+    From ``.dssketch``, an axis-map key is the *label* when the file did not write the
+    user value (it was inferred from DSSketch's standards table), and that label's user
+    value is ``None``: the inference belongs to the installed DSSketch, not the file.
     """
 
     axes: tuple[tuple[str, ...], ...]
@@ -203,6 +208,7 @@ class DesignspaceSnapshot:
     axis_labels: tuple = ()  # (axis, ((user value, name, flags), ...))
     source_locations: tuple = ()  # (master, ((dimension, value), ...))
     instance_locations: tuple = ()  # (instance, ((dimension, value), ...))
+    settings: tuple = ()  # (key, value) for document-level lines only .dssketch writes
 
 
 @dataclass(frozen=True)

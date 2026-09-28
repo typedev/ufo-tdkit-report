@@ -18,7 +18,7 @@ Groq, DeepSeek, Qwen, Kimi, GLM, or a local model.
 The project uses `uv` (there is a `uv.lock` and `.venv`).
 
 ```bash
-uv run pytest -q                              # full test suite (~255 tests, ~3s)
+uv run pytest -q                              # full test suite (~290 tests, ~3s)
 uv run --python 3.10 --extra dev pytest -q    # …on the SUPPORTED FLOOR, before pushing
 uv run pytest tests/test_report_rollup.py     # one test file
 uv run pytest -k outline_redraw               # one test by name substring
@@ -91,6 +91,17 @@ gitsource.py     paths.py          classify.py       rollup.py       render.py
   Standalone `lookup NAME { }` blocks diff per rule under `Scope.lookup`, with the features
   that reference them; they used to land in `top_level` as one opaque block, so a one-line
   edit read as the whole lookup removed and re-added under `feature ?`.
+  `dssketch.py` parses a `.dssketch` (DSSketch notation) into the **same**
+  `DesignspaceSnapshot`, so `diff_designspace` and every renderer serve both formats; the
+  only difference is `settings` (`DS_SETTING_CHANGED`), the document-level lines only
+  DSSketch writes. Parse it **as written** with `DSSParser(strict_mode=False)` — never
+  convert (`DSSToDesignSpace` opens the UFOs on disk, so an old blob would be expanded
+  against today's sources) and never round-trip through `DSSWriter` (it raises on parsed
+  wildcard rules). A mapping with `user_value_explicit` False got its user value from
+  DSSketch's standards table, which changes between DSSketch releases; it is keyed by
+  label with no user value, so a DSSketch upgrade cannot read as a source edit. Map keys
+  and label values can therefore be a label or `None` — sort them with `_order` /
+  `label_order`, never bare `sorted()`.
   Designspace facts carry `Scope.path` (a repo often has one designspace per family, and
   "axis `weight` remapped" is unplaceable without it) and identify masters by UFO file
   stem, never by `source.N` — generators renumber those when a source is inserted, which
