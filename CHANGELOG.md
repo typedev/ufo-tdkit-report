@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.6.3] - 2026-09-27
+
 ### Added
 - **`.dssketch` sources are diffed, not just named.** A family kept in
   [DSSketch](https://github.com/typedev/DSSketch) notation used to surface as a bare
@@ -739,7 +743,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/typedev/ufo-tdkit-report/compare/v0.5.4...v0.6.0
