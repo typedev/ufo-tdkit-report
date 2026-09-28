@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+_Nothing yet._
+
+## [0.6.4] - 2026-09-27
+
 ### Fixed
 - **`.dssketch` masters whose names contain spaces are no longer merged.** DSSketch before
   1.2.1 kept only the first word of an unquoted name, so `My Font Thin` and `My Font Black`
@@ -749,7 +753,8 @@ the answer. The check narrows the gap; it does not close it.
   rather than self-loaded.
 - AI key / config resolved from this tool's own config dir (`~/.config/ufo-tdkit-report/`).
 
-[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.4...HEAD
+[0.6.4]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/typedev/ufo-tdkit-report/compare/v0.6.0...v0.6.1
